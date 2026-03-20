@@ -4,3 +4,5 @@ argocd app create helm-guestbook \
 --dest-server https://kubernetes.default.svc \
 --dest-namespace default \
 --helm-set replicaCount=3
+
+kubectl -n argocd patch secret argocd-secret -p "{\"stringData\":{\"admin.password\":\"$HASH\", \"admin.passwordMtime\":\"$(date -Iseconds)\" }}"  

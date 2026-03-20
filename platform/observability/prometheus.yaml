@@ -38,16 +38,32 @@ data:
               - otel-collector.observability.svc.cluster.local:8889
   guestbook-alerts.yml: |
     groups:
+      - name: guestbook.sli
+        rules:
+          - record: guestbook:availability:5m
+            expr: avg_over_time(probe_success{job="blackbox-guestbook"}[5m])
+          - record: guestbook:request_rate:5m
+            expr: sum(rate(apache_requests_total[5m]))
+          - record: guestbook:latency_avg_ms:5m
+            expr: sum(rate(apache_request_time_milliseconds_total[5m])) / clamp_min(sum(rate(apache_requests_total[5m])), 1e-9)
       - name: guestbook.rules
         rules:
           - alert: GuestbookUnavailable
-            expr: probe_success{job="blackbox-guestbook"} == 0
+            expr: guestbook:availability:5m < 1
             for: 2m
             labels:
               severity: warning
             annotations:
               summary: Guestbook probe failed
               description: Guestbook has not returned a successful HTTP response for at least 2 minutes.
+          - alert: GuestbookLatencyHigh
+            expr: guestbook:latency_avg_ms:5m > 250
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: Guestbook latency is elevated
+              description: Guestbook average request latency has exceeded 250 milliseconds for at least 10 minutes.
 ---
 apiVersion: apps/v1
 kind: Deployment

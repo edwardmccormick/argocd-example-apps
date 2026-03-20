@@ -104,11 +104,11 @@ data:
           },
           "targets": [
             {
-              "expr": "probe_success{job=\"blackbox-guestbook\"}",
+              "expr": "guestbook:availability:5m",
               "refId": "A"
             }
           ],
-          "title": "Guestbook Availability",
+          "title": "Guestbook Availability SLI",
           "type": "stat"
         },
         {
@@ -159,12 +159,12 @@ data:
           "id": 3,
           "targets": [
             {
-              "expr": "sum(rate(apache_requests_total[5m]))",
+              "expr": "guestbook:request_rate:5m",
               "legendFormat": "requests/sec",
               "refId": "A"
             }
           ],
-          "title": "Guestbook Request Rate",
+          "title": "Guestbook Request Rate SLI",
           "type": "timeseries"
         },
         {
@@ -187,12 +187,12 @@ data:
           "id": 4,
           "targets": [
             {
-              "expr": "sum(rate(apache_request_time_milliseconds_total[5m])) / clamp_min(sum(rate(apache_requests_total[5m])), 1e-9)",
+              "expr": "guestbook:latency_avg_ms:5m",
               "legendFormat": "avg request time",
               "refId": "A"
             }
           ],
-          "title": "Guestbook Average Request Time",
+          "title": "Guestbook Average Request Latency SLI",
           "type": "timeseries"
         }
       ],
