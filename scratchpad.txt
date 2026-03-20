@@ -1,0 +1,6 @@
+argocd app create helm-guestbook \
+--repo https://github.com/edwardmccormick/argocd-example-apps.git \
+--path helm-guestbook \
+--dest-server https://kubernetes.default.svc \
+--dest-namespace default \
+--helm-set replicaCount=3
