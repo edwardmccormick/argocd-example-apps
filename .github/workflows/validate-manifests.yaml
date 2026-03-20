@@ -1,0 +1,64 @@
+name: Validate Manifests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.31.0
+
+      - name: Set up kubeconform
+        run: |
+          curl -sSL -o /tmp/kubeconform.tar.gz https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          tar -xzf /tmp/kubeconform.tar.gz -C /tmp
+          sudo mv /tmp/kubeconform /usr/local/bin/kubeconform
+
+      - name: Helm lint
+        run: helm lint ./helm-guestbook
+
+      - name: Helm template default
+        run: helm template guestbook ./helm-guestbook > /tmp/guestbook-default.yaml
+
+      - name: Helm template production override
+        run: helm template guestbook ./helm-guestbook -f ./helm-guestbook/value-production.yaml > /tmp/guestbook-production.yaml
+
+      - name: Render local environment
+        run: kubectl kustomize ./environments/local > /tmp/environments-local.yaml
+
+      - name: Validate standalone manifests
+        run: |
+          kubectl create --dry-run=client --validate=false -f ./argocd-ingress.yaml -o yaml > /tmp/argocd-ingress-validated.yaml
+          kubectl create --dry-run=client --validate=false -f ./platform/argocd/root-application.yaml -o yaml > /tmp/root-application-validated.yaml
+
+      - name: Kubeconform core manifests
+        run: |
+          kubeconform -strict -summary -ignore-missing-schemas /tmp/guestbook-default.yaml
+          kubeconform -strict -summary -ignore-missing-schemas /tmp/guestbook-production.yaml
+          kubeconform -strict -summary -ignore-missing-schemas /tmp/environments-local.yaml
+          kubeconform -strict -summary -ignore-missing-schemas /tmp/argocd-ingress-validated.yaml
+          kubeconform -strict -summary -ignore-missing-schemas /tmp/root-application-validated.yaml
+
+      - name: Trivy config scan
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: config
+          hide-progress: true
+          severity: HIGH,CRITICAL
+          exit-code: '1'
