@@ -4,3 +4,4 @@ kind: Kustomization
 resources:
   - argocd/project-guestbook.yaml
   - apps/guestbook.yaml
+  - apps/observability.yaml

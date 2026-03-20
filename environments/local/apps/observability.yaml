@@ -1,27 +1,24 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: helm-guestbook
+  name: observability
   namespace: argocd
 spec:
   project: local-lab
   source:
     repoURL: https://github.com/edwardmccormick/argocd-example-apps.git
     targetRevision: HEAD
-    path: helm-guestbook
-    helm:
-      valueFiles:
-        - values.yaml
+    path: platform/observability
   destination:
     server: https://kubernetes.default.svc
-    namespace: default
+    namespace: observability
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
   info:
-    - name: sync-mode
-      value: Automated with prune and self-heal after the legacy app cutover.
-    - name: status
-      value: Helm is now the active source of truth for the guestbook workload.
+    - name: stack
+      value: Prometheus, Grafana, Blackbox Exporter, and OpenTelemetry Collector running locally.
+    - name: purpose
+      value: Local OpenTelemetry-compatible observability baseline for guestbook and later AI workloads.
   revisionHistoryLimit: 5

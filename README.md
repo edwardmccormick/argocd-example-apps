@@ -17,6 +17,7 @@ The repository now also includes an initial GitOps scaffold:
 - [`apps/guestbook`](./apps/guestbook) for workload ownership and app notes
 - [`environments/local`](./environments/local) for the local cluster's ArgoCD-managed resources
 - [`platform/argocd`](./platform/argocd) for ArgoCD bootstrap manifests
+- [`platform/observability`](./platform/observability) for the local observability baseline
 
 That is enough to move beyond basic setup and focus on operational patterns.
 
@@ -38,20 +39,17 @@ This repository should grow into a local platform that demonstrates:
 
 Restructure the repo to manage applications declaratively in Git. Add environment-aware manifests or Helm values, then manage them through ArgoCD `Application` manifests or an app-of-apps pattern. The repository should become the source of truth, with CLI usage reserved for inspection, sync, and troubleshooting.
 
-This step is now scaffolded, but not finished:
+This step is now active:
 
 - the root ArgoCD bootstrap app lives at [`platform/argocd/root-application.yaml`](./platform/argocd/root-application.yaml)
 - the local environment lives at [`environments/local`](./environments/local)
 - the Helm-backed guestbook app lives at [`environments/local/apps/guestbook.yaml`](./environments/local/apps/guestbook.yaml)
 
-Two cleanup tasks remain before this becomes the active path:
-
-- update `repoURL` placeholders to your real GitHub repository
-- remove or retire the older non-Helm guestbook application already running in the cluster
+The guestbook workload now runs from the Helm chart in this repository, with ArgoCD automated sync, prune, and self-heal enabled.
 
 ### 2. Observability Baseline
 
-Install and configure a minimal observability stack such as Prometheus, Grafana, and OpenTelemetry-compatible components. Define at least two service indicators for the guestbook app:
+Install and configure a minimal observability stack such as Prometheus, Grafana, and OpenTelemetry-compatible components. The local baseline now uses Prometheus, Grafana, Blackbox Exporter, and an OpenTelemetry Collector. Define at least two service indicators for the guestbook app:
 
 - availability
 - request latency
@@ -107,14 +105,11 @@ Add a lightweight queue-based service and autoscale it with KEDA. This gives the
 
 ## Immediate Next Steps
 
-1. Complete the `helm-guestbook` chart by adding templates for the Deployment, Service, and any ingress resources you want ArgoCD to manage.
-2. Replace the `REPLACE_ME` GitHub URLs in the ArgoCD bootstrap files with the actual repository URL.
-3. Apply the bootstrap app or the local environment manifests to ArgoCD.
-4. Confirm the existing non-Helm guestbook app is removed before enabling automated sync on the Helm-backed app.
-5. After cutover, add:
-   - `prune: true`
-   - `selfHeal: true`
-   under `spec.syncPolicy.automated` in the Helm application manifest.
+1. Apply the local environment so ArgoCD creates the observability application.
+2. Verify Prometheus is probing `guestbook-ui` and that the `Guestbook Overview` dashboard loads in Grafana.
+3. Expose Grafana and Prometheus with a local ingress or port-forward if you want browser access from Windows.
+4. Add application-level metrics or OTLP traces from a future workload into the OpenTelemetry Collector.
+5. Extend alerting beyond basic availability with latency or error-budget style signals.
 
 ## Operating Principle
 
