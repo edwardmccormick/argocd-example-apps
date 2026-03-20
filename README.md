@@ -69,7 +69,7 @@ Add CI workflows that validate infrastructure and manifests on every change. The
 
 The point is to show that reliability and quality are enforced before deployment, not inspected afterward.
 
-The repository now includes a GitHub Actions validation workflow for Helm rendering, Kustomize rendering, client-side manifest parsing, Kubernetes schema validation, and Trivy config scanning.
+The repository now includes a GitHub Actions validation workflow for Helm rendering, Kustomize rendering, client-side manifest parsing, Kubernetes schema validation, Trivy config scanning, and an ephemeral kind-based smoke test that verifies the guestbook chart can deploy and serve traffic before merge.
 
 ### 4. Failure Drills
 
