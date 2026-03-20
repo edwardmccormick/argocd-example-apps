@@ -138,6 +138,62 @@ data:
           ],
           "title": "Guestbook Probe Duration",
           "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 8
+          },
+          "id": 3,
+          "targets": [
+            {
+              "expr": "sum(rate(apache_requests_total[5m]))",
+              "legendFormat": "requests/sec",
+              "refId": "A"
+            }
+          ],
+          "title": "Guestbook Request Rate",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ms"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 8
+          },
+          "id": 4,
+          "targets": [
+            {
+              "expr": "sum(rate(apache_request_time_milliseconds_total[5m])) / clamp_min(sum(rate(apache_requests_total[5m])), 1e-9)",
+              "legendFormat": "avg request time",
+              "refId": "A"
+            }
+          ],
+          "title": "Guestbook Average Request Time",
+          "type": "timeseries"
         }
       ],
       "schemaVersion": 39,

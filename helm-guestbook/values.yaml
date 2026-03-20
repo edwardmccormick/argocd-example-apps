@@ -34,7 +34,7 @@ traefikIngressRoute:
   enabled: true
   entryPoints:
     - web
-  match: Host(`practice.guestbook`)
+  match: Host(`guestbook.localhost`)
 
 telemetry:
   enabled: true

@@ -7,16 +7,8 @@ spec:
   entryPoints:
     - web
   routes:
-    # Rule 1: Professional Hostname (argocd.localhost:8080)
-    - match: Host(`practice.argo`)
+    - match: Host(`argocd.localhost`)
       kind: Rule
-      services:
-        - name: argocd-server
-          port: 80
-    # Rule 2: Fallback for direct IP/Localhost (localhost:8080)
-    - match: Host(`localhost`) || PathPrefix(`/`)
-      kind: Rule
-      priority: 1 # Lower priority so specific host matches first
       services:
         - name: argocd-server
           port: 80

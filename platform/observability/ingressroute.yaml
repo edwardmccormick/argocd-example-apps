@@ -6,7 +6,7 @@ spec:
   entryPoints:
     - web
   routes:
-    - match: Host(`practice.grafana`)
+    - match: Host(`grafana.localhost`)
       kind: Rule
       services:
         - name: grafana
@@ -20,7 +20,7 @@ spec:
   entryPoints:
     - web
   routes:
-    - match: Host(`practice.prometheus`)
+    - match: Host(`prometheus.localhost`)
       kind: Rule
       services:
         - name: prometheus
