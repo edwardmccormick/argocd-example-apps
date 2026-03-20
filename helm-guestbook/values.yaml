@@ -47,7 +47,7 @@ telemetry:
 
 probes:
   readiness:
-    path: /doesnotexist
+    path: /
     initialDelaySeconds: 5
     periodSeconds: 10
     timeoutSeconds: 2
