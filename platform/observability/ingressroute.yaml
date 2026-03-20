@@ -1,0 +1,27 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: grafana
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`practice.grafana`)
+      kind: Rule
+      services:
+        - name: grafana
+          port: 3000
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: prometheus
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`practice.prometheus`)
+      kind: Rule
+      services:
+        - name: prometheus
+          port: 9090

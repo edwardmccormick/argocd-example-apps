@@ -30,6 +30,21 @@ ingress:
           pathType: Prefix
   tls: []
 
+traefikIngressRoute:
+  enabled: true
+  entryPoints:
+    - web
+  match: Host(`practice.guestbook`)
+
+telemetry:
+  enabled: true
+  apacheLogDir: /var/log/apache-otel
+  otelCollectorEndpoint: otel-collector.observability.svc.cluster.local:4317
+  sidecarImage:
+    repository: otel/opentelemetry-collector-contrib
+    tag: 0.110.0
+    pullPolicy: IfNotPresent
+
 resources: {}
 
 nodeSelector: {}

@@ -1,0 +1,62 @@
+{{- if .Values.telemetry.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "helm-guestbook.fullname" . }}-telemetry
+  labels:
+    {{- include "helm-guestbook.labels" . | nindent 4 }}
+data:
+  guestbook-status.conf: |
+    ExtendedStatus On
+    <Location /server-status>
+      SetHandler server-status
+      Require ip 127.0.0.1
+    </Location>
+  otel-sidecar-config.yaml: |
+    receivers:
+      apache:
+        collection_interval: 15s
+        endpoint: http://127.0.0.1/server-status?auto
+      filelog/access:
+        include:
+          - {{ .Values.telemetry.apacheLogDir }}/access.log
+        start_at: end
+        include_file_path: true
+        operators:
+          - type: regex_parser
+            regex: '^(?P<client_ip>\S+) \S+ \S+ \[(?P<timestamp>[^\]]+)\] "(?P<http_method>\S+) (?P<http_target>[^"]*?) (?P<http_flavor>[^"]*?)" (?P<http_status_code>\d{3}) (?P<http_response_size>\d+|-) "(?P<http_referer>[^"]*)" "(?P<http_user_agent>[^"]*)"'
+            timestamp:
+              parse_from: attributes.timestamp
+              layout: '%d/%b/%Y:%H:%M:%S %z'
+
+    processors:
+      resource:
+        attributes:
+          - action: upsert
+            key: service.name
+            value: guestbook-ui
+          - action: upsert
+            key: service.namespace
+            value: {{ .Release.Namespace }}
+          - action: upsert
+            key: deployment.environment
+            value: local
+      batch: {}
+
+    exporters:
+      otlp:
+        endpoint: {{ .Values.telemetry.otelCollectorEndpoint }}
+        tls:
+          insecure: true
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [apache]
+          processors: [resource, batch]
+          exporters: [otlp]
+        logs:
+          receivers: [filelog/access]
+          processors: [resource, batch]
+          exporters: [otlp]
+{{- end }}

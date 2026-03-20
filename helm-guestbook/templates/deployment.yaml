@@ -20,12 +20,38 @@ spec:
         - name: {{ include "helm-guestbook.fullname" . }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.telemetry.enabled }}
+          env:
+            - name: APACHE_LOG_DIR
+              value: {{ .Values.telemetry.apacheLogDir | quote }}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.containerPort }}
               protocol: TCP
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.telemetry.enabled }}
+          volumeMounts:
+            - name: apache-logs
+              mountPath: {{ .Values.telemetry.apacheLogDir }}
+            - name: guestbook-telemetry-config
+              mountPath: /etc/apache2/conf-enabled/guestbook-status.conf
+              subPath: guestbook-status.conf
+          {{- end }}
+        {{- if .Values.telemetry.enabled }}
+        - name: otel-sidecar
+          image: "{{ .Values.telemetry.sidecarImage.repository }}:{{ .Values.telemetry.sidecarImage.tag }}"
+          imagePullPolicy: {{ .Values.telemetry.sidecarImage.pullPolicy }}
+          args:
+            - --config=/conf/otel-sidecar-config.yaml
+          volumeMounts:
+            - name: apache-logs
+              mountPath: {{ .Values.telemetry.apacheLogDir }}
+            - name: guestbook-telemetry-config
+              mountPath: /conf/otel-sidecar-config.yaml
+              subPath: otel-sidecar-config.yaml
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -37,4 +63,12 @@ spec:
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.telemetry.enabled }}
+      volumes:
+        - name: apache-logs
+          emptyDir: {}
+        - name: guestbook-telemetry-config
+          configMap:
+            name: {{ include "helm-guestbook.fullname" . }}-telemetry
       {{- end }}

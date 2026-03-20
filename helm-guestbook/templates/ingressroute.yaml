@@ -1,0 +1,19 @@
+{{- if .Values.traefikIngressRoute.enabled }}
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ include "helm-guestbook.fullname" . }}
+  labels:
+    {{- include "helm-guestbook.labels" . | nindent 4 }}
+spec:
+  entryPoints:
+    {{- range .Values.traefikIngressRoute.entryPoints }}
+    - {{ . }}
+    {{- end }}
+  routes:
+    - match: {{ .Values.traefikIngressRoute.match }}
+      kind: Rule
+      services:
+        - name: {{ include "helm-guestbook.fullname" . }}
+          port: {{ .Values.service.port }}
+{{- end }}
