@@ -10,3 +10,4 @@ resources:
   - grafana.yaml
   - otel-collector.yaml
   - ingressroute.yaml
+  - load-generator.yaml
