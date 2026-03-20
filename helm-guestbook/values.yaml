@@ -45,6 +45,20 @@ telemetry:
     tag: 0.110.0
     pullPolicy: IfNotPresent
 
+probes:
+  readiness:
+    path: /
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  liveness:
+    path: /
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 2
+    failureThreshold: 3
+
 resources: {}
 
 nodeSelector: {}

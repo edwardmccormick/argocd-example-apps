@@ -5,4 +5,4 @@ argocd app create helm-guestbook \
 --dest-namespace default \
 --helm-set replicaCount=3
 
-kubectl -n argocd patch secret argocd-secret -p "{\"stringData\":{\"admin.password\":\"$HASH\", \"admin.passwordMtime\":\"$(date -Iseconds)\" }}"  
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
