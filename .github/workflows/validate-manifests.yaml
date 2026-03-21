@@ -55,13 +55,17 @@ jobs:
           kubeconform -strict -summary -ignore-missing-schemas /tmp/argocd-ingress-validated.yaml
           kubeconform -strict -summary -ignore-missing-schemas /tmp/root-application-validated.yaml
 
+      - name: Set up Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+
       - name: Trivy config scan
-        uses: aquasecurity/trivy-action@0.24.0
-        with:
-          scan-type: config
-          hide-progress: true
-          severity: HIGH,CRITICAL
-          exit-code: '1'
+        run: |
+          trivy config \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --no-progress \
+            .
 
   smoke-test:
     runs-on: ubuntu-latest
