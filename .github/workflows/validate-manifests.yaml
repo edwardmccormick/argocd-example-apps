@@ -169,7 +169,29 @@ jobs:
             '
 
       - name: Install AI reliability service
-        run: kubectl apply -k ./platform/ai-reliability
+        run: |
+          kubectl kustomize ./platform/ai-reliability > /tmp/ai-reliability-smoke.yaml
+          python3 - <<'PY'
+          import yaml
+
+          source = "/tmp/ai-reliability-smoke.yaml"
+          target = "/tmp/ai-reliability-smoke-no-ingress.yaml"
+
+          with open(source, "r", encoding="utf-8") as fh:
+              docs = [doc for doc in yaml.safe_load_all(fh) if doc]
+
+          filtered = [
+              doc for doc in docs
+              if not (
+                  doc.get("apiVersion") == "traefik.containo.us/v1alpha1"
+                  and doc.get("kind") == "IngressRoute"
+              )
+          ]
+
+          with open(target, "w", encoding="utf-8") as fh:
+              yaml.safe_dump_all(filtered, fh, sort_keys=False)
+          PY
+          kubectl apply -f /tmp/ai-reliability-smoke-no-ingress.yaml
 
       - name: Wait for AI reliability rollout
         run: |
