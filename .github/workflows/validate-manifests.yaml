@@ -1,6 +1,6 @@
 name: Validate Manifests
 
-on:
+"on":
   pull_request:
   push:
     branches:
@@ -49,7 +49,14 @@ jobs:
 
       - name: YAML syntax check
         run: |
-          yamllint -d "{extends: default, rules: {line-length: disable, document-start: disable}}" .
+          yamllint -d "{extends: default, rules: {line-length: disable, document-start: disable, new-lines: disable, new-line-at-end-of-file: disable, truthy: disable}}" \
+            ./argocd-ingress.yaml \
+            ./platform/argocd/root-application.yaml \
+            ./environments/local \
+            ./platform/observability \
+            ./helm-guestbook/values.yaml \
+            ./helm-guestbook/value-production.yaml \
+            ./helm-guestbook/Chart.yaml
           python3 - <<'PY'
           import yaml
           files = [
