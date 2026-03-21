@@ -75,6 +75,8 @@ The repository now includes a GitHub Actions validation workflow for Helm render
 
 A short write-up on why the Trivy scan and smoke test were worth keeping lives in [`trivy-and-smoketest-notes.md`](./trivy-and-smoketest-notes.md).
 
+That write-up also now captures a related CI lesson: security tools and GitHub Actions are themselves part of the software supply chain, so the repository treats dependency trust, pinning, and blast-radius reduction as part of the quality discussion rather than as a separate concern.
+
 ### 4. Failure Drills
 
 Use ArgoCD self-heal, pruning, broken readiness checks, and bad configuration changes as controlled failure exercises. Each drill should produce a short runbook describing:

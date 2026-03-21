@@ -1,0 +1,52 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090
+
+  - job_name: blackbox-guestbook
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://guestbook-ui.default.svc.cluster.local/
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter.observability.svc.cluster.local:9115
+
+  - job_name: otel-collector
+    static_configs:
+      - targets:
+          - otel-collector.observability.svc.cluster.local:8889
+
+  - job_name: ai-docqa
+    static_configs:
+      - targets:
+          - ai-reliability.ai-lab.svc.cluster.local:8080
+
+  - job_name: argocd-application-controller-metrics
+    static_configs:
+      - targets:
+          - argocd-metrics.argocd.svc.cluster.local:8082
+
+  - job_name: argocd-server-metrics
+    static_configs:
+      - targets:
+          - argocd-server-metrics.argocd.svc.cluster.local:8083
+
+  - job_name: argocd-repo-server-metrics
+    static_configs:
+      - targets:
+          - argocd-repo-server.argocd.svc.cluster.local:8084

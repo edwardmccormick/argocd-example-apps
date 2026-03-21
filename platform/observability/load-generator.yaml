@@ -28,6 +28,49 @@ data:
       sleep(1);
     }
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-docqa-load-test
+data:
+  script.js: |
+    import http from 'k6/http';
+    import { sleep } from 'k6';
+
+    export const options = {
+      vus: 2,
+      duration: '30s',
+      thresholds: {
+        http_req_failed: ['rate<0.01'],
+        http_req_duration: ['p(95)<1000'],
+      },
+    };
+
+    const target = __ENV.TARGET_URL || 'http://ai-reliability.ai-lab.svc.cluster.local:8080/ask';
+    const questions = [
+      'What does the validation workflow enforce before merge?',
+      'What did the guestbook readiness drill teach us about rolling updates?',
+      'What service indicators does the guestbook workload expose today?',
+    ];
+
+    export default function () {
+      const question = questions[Math.floor(Math.random() * questions.length)];
+      http.post(
+        target,
+        JSON.stringify({ question }),
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          tags: {
+            service: 'ai-reliability',
+            environment: 'local',
+          },
+        }
+      );
+      sleep(1);
+    }
+---
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -71,3 +114,47 @@ spec:
             - name: script
               configMap:
                 name: guestbook-load-test
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ai-docqa-load-generator
+spec:
+  schedule: "*/10 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          restartPolicy: Never
+          containers:
+            - name: k6
+              image: grafana/k6:0.49.0
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 12345
+                runAsGroup: 12345
+                capabilities:
+                  drop:
+                    - ALL
+              env:
+                - name: TARGET_URL
+                  value: http://ai-reliability.ai-lab.svc.cluster.local:8080/ask
+              command:
+                - k6
+                - run
+                - /scripts/script.js
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+          volumes:
+            - name: script
+              configMap:
+                name: ai-docqa-load-test
