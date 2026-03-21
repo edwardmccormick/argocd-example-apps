@@ -1,0 +1,95 @@
+groups:
+  - name: guestbook.sli
+    rules:
+      - record: guestbook:availability:5m
+        expr: avg_over_time(probe_success{job="blackbox-guestbook"}[5m])
+      - record: guestbook:request_rate:5m
+        expr: sum(rate(apache_requests_total[5m]))
+      - record: guestbook:latency_avg_ms:5m
+        expr: sum(rate(apache_request_time_milliseconds_total[5m])) / clamp_min(sum(rate(apache_requests_total[5m])), 1e-9)
+  - name: guestbook.rules
+    rules:
+      - alert: GuestbookUnavailable
+        expr: guestbook:availability:5m < 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Guestbook probe failed
+          description: Guestbook has not returned a successful HTTP response for at least 2 minutes.
+      - alert: GuestbookLatencyHigh
+        expr: guestbook:latency_avg_ms:5m > 250
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Guestbook latency is elevated
+          description: Guestbook average request latency has exceeded 250 milliseconds for at least 10 minutes.
+  - name: ai-docqa.sli
+    rules:
+      - record: ai_docqa:workflow_completion_ratio:5m
+        expr: sum(rate(ai_docqa_workflow_completions_total{result="success"}[5m])) / clamp_min(sum(rate(ai_docqa_workflow_completions_total[5m])), 1e-9)
+      - record: ai_docqa:structured_output_validity_ratio:5m
+        expr: sum(rate(ai_docqa_structured_output_total{result="valid"}[5m])) / clamp_min(sum(rate(ai_docqa_structured_output_total[5m])), 1e-9)
+      - record: ai_docqa:latency_p95_seconds:5m
+        expr: histogram_quantile(0.95, sum by (le) (rate(ai_docqa_request_duration_seconds_bucket[5m])))
+  - name: ai-docqa.rules
+    rules:
+      - alert: AiDocQaWorkflowCompletionLow
+        expr: ai_docqa:workflow_completion_ratio:5m < 0.95
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: AI document QA workflow completion is degraded
+          description: Successful grounded completions have fallen below 95 percent over the trailing 5 minutes.
+      - alert: AiDocQaLatencyHigh
+        expr: ai_docqa:latency_p95_seconds:5m > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: AI document QA latency is elevated
+          description: The p95 request latency has exceeded one second for at least 10 minutes.
+  - name: argocd.sli
+    rules:
+      - record: argocd:apps_outofsync:count
+        expr: count(argocd_app_info{sync_status!="Synced"})
+      - record: argocd:apps_unhealthy:count
+        expr: count(argocd_app_info{health_status!="Healthy"})
+      - record: argocd:repo_server_errors:rate5m
+        expr: sum(rate(grpc_server_handled_total{job="argocd-repo-server-metrics",grpc_code!="OK"}[5m]))
+  - name: argocd.rules
+    rules:
+      - alert: ArgoCdRepoServerDown
+        expr: up{job="argocd-repo-server-metrics"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Argo CD repo-server is down
+          description: Prometheus cannot scrape the Argo CD repo-server metrics endpoint.
+      - alert: ArgoCdAppsOutOfSync
+        expr: argocd:apps_outofsync:count > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Argo CD applications remain out of sync
+          description: One or more Argo CD applications have been out of sync for at least 10 minutes.
+      - alert: ArgoCdAppHealthDegraded
+        expr: argocd:apps_unhealthy:count > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Argo CD application health is degraded
+          description: One or more Argo CD applications are not reporting Healthy status for at least 10 minutes.
+      - alert: ArgoCdRepoServerErrors
+        expr: argocd:repo_server_errors:rate5m > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Argo CD repo-server is returning errors
+          description: The Argo CD repo-server has returned non-OK gRPC responses for at least 10 minutes.

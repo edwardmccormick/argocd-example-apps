@@ -3,6 +3,18 @@ kind: Kustomization
 
 namespace: observability
 
+configMapGenerator:
+  - name: prometheus-config
+    files:
+      - config/prometheus/prometheus.yml
+      - alerts.yml=config/prometheus/alerts.yml
+  - name: grafana-datasources
+    files:
+      - datasources.yaml=config/grafana/datasources.yaml
+  - name: grafana-dashboards-provider
+    files:
+      - dashboards.yaml=config/grafana/dashboards.yaml
+
 resources:
   - namespace.yaml
   - blackbox-exporter.yaml

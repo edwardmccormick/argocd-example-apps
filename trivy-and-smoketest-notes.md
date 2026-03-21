@@ -107,3 +107,33 @@ The lesson is:
 3. pair static checks with runtime validation so hardening does not silently break deployability
 
 That is a much closer approximation of real-world SRE and platform engineering than a repo that only proves YAML can render.
+
+## Supply Chain Note
+
+One useful follow-on lesson from this work is that CI security tooling has its own supply-chain risk.
+
+This repository originally tried to use the hosted `trivy-action` GitHub Action directly and then moved to a direct Trivy CLI install and invocation. That change avoided the compromised action path that later became an active industry concern, but it does not eliminate supply-chain trust entirely. A workflow that downloads an installer script or binary at runtime is still placing trust in upstream distribution infrastructure.
+
+That tradeoff is worth being explicit about:
+
+- using the action can be convenient, but it expands trust into third-party workflow code
+- installing the CLI directly reduces one layer of indirection, but still trusts the fetched installer and artifact
+- pinning versions improves reproducibility, but can slow intake of legitimate security updates
+- always following "latest" improves freshness, but increases exposure to upstream compromise or unexpected breakage
+
+There is no single perfect answer. In higher-trust environments, common hardening patterns include:
+
+- pinning actions by commit SHA instead of mutable tags
+- pinning tool versions and verifying checksums or signatures
+- mirroring approved binaries or packages into an internal artifact repository
+- separating unprivileged PR validation from workflows that hold deployment credentials
+- minimizing CI secrets and default workflow permissions so compromise has less blast radius
+
+One of the more interesting platform-engineering questions is not whether dependencies should be trusted by default. They should not. The real question is how to balance:
+
+- reproducibility
+- patch velocity
+- operational simplicity
+- blast-radius reduction
+
+That balancing act is still very much an open systems problem, and it is part of why supply-chain discussions belong in reliability conversations rather than only in security reviews.
