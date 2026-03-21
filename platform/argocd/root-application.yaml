@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/edwardmccormick/argocd-example-apps.git
-    targetRevision: HEAD
+    targetRevision: main
     path: environments/local
   destination:
     server: https://kubernetes.default.svc
