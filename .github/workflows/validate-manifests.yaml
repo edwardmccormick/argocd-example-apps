@@ -30,6 +30,11 @@ jobs:
           tar -xzf /tmp/kubeconform.tar.gz -C /tmp
           sudo mv /tmp/kubeconform /usr/local/bin/kubeconform
 
+      - name: Set up YAML tooling
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pyyaml yamllint
+
       - name: Helm lint
         run: helm lint ./helm-guestbook
 
@@ -42,18 +47,28 @@ jobs:
       - name: Render local environment
         run: kubectl kustomize ./environments/local > /tmp/environments-local.yaml
 
-      - name: Validate standalone manifests
+      - name: YAML syntax check
         run: |
-          kubectl create --dry-run=client --validate=false -f ./argocd-ingress.yaml -o yaml > /tmp/argocd-ingress-validated.yaml
-          kubectl create --dry-run=client --validate=false -f ./platform/argocd/root-application.yaml -o yaml > /tmp/root-application-validated.yaml
+          yamllint -d "{extends: default, rules: {line-length: disable, document-start: disable}}" .
+          python3 - <<'PY'
+          import yaml
+          files = [
+              "./argocd-ingress.yaml",
+              "./platform/argocd/root-application.yaml",
+          ]
+          for path in files:
+              with open(path, "r", encoding="utf-8") as fh:
+                  list(yaml.safe_load_all(fh))
+          print("yaml_parse_ok")
+          PY
 
       - name: Kubeconform core manifests
         run: |
           kubeconform -strict -summary -ignore-missing-schemas /tmp/guestbook-default.yaml
           kubeconform -strict -summary -ignore-missing-schemas /tmp/guestbook-production.yaml
           kubeconform -strict -summary -ignore-missing-schemas /tmp/environments-local.yaml
-          kubeconform -strict -summary -ignore-missing-schemas /tmp/argocd-ingress-validated.yaml
-          kubeconform -strict -summary -ignore-missing-schemas /tmp/root-application-validated.yaml
+          kubeconform -strict -summary -ignore-missing-schemas ./argocd-ingress.yaml
+          kubeconform -strict -summary -ignore-missing-schemas ./platform/argocd/root-application.yaml
 
       - name: Set up Trivy
         run: |
