@@ -16,10 +16,16 @@ spec:
         {{- include "helm-guestbook.labels" . | nindent 8 }}
         {{- include "helm-guestbook.selectorLabels" . | nindent 8 }}
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: {{ include "helm-guestbook.fullname" . }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
           {{- if .Values.telemetry.enabled }}
           env:
             - name: APACHE_LOG_DIR
@@ -47,8 +53,16 @@ spec:
             failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if .Values.telemetry.enabled }}
           volumeMounts:
+            - name: apache-run
+              mountPath: /var/run/apache2
+            - name: apache-lock
+              mountPath: /var/lock/apache2
+            - name: apache-lib
+              mountPath: /var/lib/apache2
+            - name: apache-tmp
+              mountPath: /tmp
+          {{- if .Values.telemetry.enabled }}
             - name: apache-logs
               mountPath: {{ .Values.telemetry.apacheLogDir }}
             - name: guestbook-telemetry-config
@@ -59,6 +73,15 @@ spec:
         - name: otel-sidecar
           image: "{{ .Values.telemetry.sidecarImage.repository }}:{{ .Values.telemetry.sidecarImage.tag }}"
           imagePullPolicy: {{ .Values.telemetry.sidecarImage.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            capabilities:
+              drop:
+                - ALL
           args:
             - --config=/conf/otel-sidecar-config.yaml
           volumeMounts:
@@ -80,8 +103,16 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.telemetry.enabled }}
       volumes:
+        - name: apache-run
+          emptyDir: {}
+        - name: apache-lock
+          emptyDir: {}
+        - name: apache-lib
+          emptyDir: {}
+        - name: apache-tmp
+          emptyDir: {}
+      {{- if .Values.telemetry.enabled }}
         - name: apache-logs
           emptyDir: {}
         - name: guestbook-telemetry-config

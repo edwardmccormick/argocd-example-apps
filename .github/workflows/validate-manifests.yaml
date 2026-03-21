@@ -1,0 +1,152 @@
+name: Validate Manifests
+
+"on":
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.31.0
+
+      - name: Set up kubeconform
+        run: |
+          curl -sSL -o /tmp/kubeconform.tar.gz https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          tar -xzf /tmp/kubeconform.tar.gz -C /tmp
+          sudo mv /tmp/kubeconform /usr/local/bin/kubeconform
+
+      - name: Set up YAML tooling
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pyyaml yamllint
+
+      - name: Helm lint
+        run: helm lint ./helm-guestbook
+
+      - name: Helm template default
+        run: helm template guestbook ./helm-guestbook > /tmp/guestbook-default.yaml
+
+      - name: Helm template production override
+        run: helm template guestbook ./helm-guestbook -f ./helm-guestbook/value-production.yaml > /tmp/guestbook-production.yaml
+
+      - name: Render local environment
+        run: kubectl kustomize ./environments/local > /tmp/environments-local.yaml
+
+      - name: YAML syntax check
+        run: |
+          yamllint -d "{extends: default, rules: {line-length: disable, document-start: disable, new-lines: disable, new-line-at-end-of-file: disable, truthy: disable}}" \
+            ./argocd-ingress.yaml \
+            ./platform/argocd/root-application.yaml \
+            ./environments/local \
+            ./platform/observability \
+            ./helm-guestbook/values.yaml \
+            ./helm-guestbook/value-production.yaml \
+            ./helm-guestbook/Chart.yaml
+          python3 - <<'PY'
+          import yaml
+          files = [
+              "./argocd-ingress.yaml",
+              "./platform/argocd/root-application.yaml",
+          ]
+          for path in files:
+              with open(path, "r", encoding="utf-8") as fh:
+                  list(yaml.safe_load_all(fh))
+          print("yaml_parse_ok")
+          PY
+
+      - name: Kubeconform core manifests
+        run: |
+          kubeconform -strict -summary -ignore-missing-schemas /tmp/guestbook-default.yaml
+          kubeconform -strict -summary -ignore-missing-schemas /tmp/guestbook-production.yaml
+          kubeconform -strict -summary -ignore-missing-schemas /tmp/environments-local.yaml
+          kubeconform -strict -summary -ignore-missing-schemas ./argocd-ingress.yaml
+          kubeconform -strict -summary -ignore-missing-schemas ./platform/argocd/root-application.yaml
+
+      - name: Set up Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+
+      - name: Trivy config scan
+        run: |
+          trivy config \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --quiet \
+            .
+
+  smoke-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.31.0
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.10.0
+        with:
+          cluster_name: ci-smoke
+
+      - name: Install guestbook chart
+        run: |
+          helm install guestbook ./helm-guestbook \
+            --set traefikIngressRoute.enabled=false \
+            --set telemetry.enabled=false
+
+      - name: Wait for deployment rollout
+        run: |
+          kubectl rollout status deployment/guestbook-ui --timeout=180s
+          kubectl wait --for=condition=available deployment/guestbook-ui --timeout=180s
+
+      - name: Smoke test diagnostics
+        if: failure()
+        run: |
+          kubectl get all
+          echo "---"
+          kubectl describe deployment guestbook-ui
+          echo "---"
+          kubectl get pods -l app=guestbook-ui -o wide
+          echo "---"
+          kubectl describe pods -l app=guestbook-ui
+          echo "---"
+          kubectl logs deployment/guestbook-ui --tail=100 || true
+          echo "---"
+          for pod in $(kubectl get pods -l app=guestbook-ui -o jsonpath='{.items[*].metadata.name}'); do
+            echo "### logs for ${pod}"
+            kubectl logs "$pod" --all-containers=true --tail=100 || true
+            echo "---"
+          done
+
+      - name: Smoke test guestbook service
+        run: |
+          kubectl run guestbook-smoke \
+            --image=curlimages/curl:8.10.1 \
+            --restart=Never \
+            --rm \
+            -i \
+            --command -- \
+            curl -fsS http://guestbook-ui.default.svc.cluster.local/

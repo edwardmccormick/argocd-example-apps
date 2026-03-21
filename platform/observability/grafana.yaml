@@ -229,9 +229,22 @@ spec:
       labels:
         app: grafana
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+        fsGroup: 472
       containers:
         - name: grafana
           image: grafana/grafana:11.1.4
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 472
+            runAsGroup: 472
+            capabilities:
+              drop:
+                - ALL
           env:
             - name: GF_SECURITY_ADMIN_USER
               value: admin

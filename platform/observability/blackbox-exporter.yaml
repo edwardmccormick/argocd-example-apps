@@ -25,9 +25,21 @@ spec:
       labels:
         app: blackbox-exporter
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: blackbox-exporter
           image: quay.io/prometheus/blackbox-exporter:v0.25.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            capabilities:
+              drop:
+                - ALL
           args:
             - --config.file=/etc/blackbox_exporter/blackbox.yml
           ports:

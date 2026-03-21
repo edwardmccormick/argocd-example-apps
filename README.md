@@ -69,6 +69,10 @@ Add CI workflows that validate infrastructure and manifests on every change. The
 
 The point is to show that reliability and quality are enforced before deployment, not inspected afterward.
 
+The repository now includes a GitHub Actions validation workflow for Helm rendering, Kustomize rendering, client-side manifest parsing, Kubernetes schema validation, Trivy config scanning, and an ephemeral kind-based smoke test that verifies the guestbook chart can deploy and serve traffic before merge.
+
+A short write-up on why the Trivy scan and smoke test were worth keeping lives in [`trivy-and-smoketest-notes.md`](./trivy-and-smoketest-notes.md).
+
 ### 4. Failure Drills
 
 Use ArgoCD self-heal, pruning, broken readiness checks, and bad configuration changes as controlled failure exercises. Each drill should produce a short runbook describing:
@@ -105,9 +109,9 @@ Add a lightweight queue-based service and autoscale it with KEDA. This gives the
 
 ## Immediate Next Steps
 
-1. Apply the local environment so ArgoCD creates the observability application.
-2. Verify Prometheus is probing `guestbook-ui` and that the `Guestbook Overview` dashboard loads in Grafana.
-3. Expose Grafana and Prometheus with a local ingress or port-forward if you want browser access from Windows.
+1. Let the GitHub Actions validation workflow run on the next push and fix any gaps it exposes.
+2. Recover the guestbook readiness drill by reverting the bad probe path and confirming the rollout completes.
+3. Verify Prometheus is probing `guestbook-ui` and that the `Guestbook Overview` dashboard loads in Grafana.
 4. Add application-level metrics or OTLP traces from a future workload into the OpenTelemetry Collector.
 5. Extend alerting beyond basic availability with latency or error-budget style signals.
 
