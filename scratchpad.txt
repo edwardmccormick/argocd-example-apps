@@ -1,8 +1,0 @@
-argocd app create helm-guestbook \
---repo https://github.com/edwardmccormick/argocd-example-apps.git \
---path helm-guestbook \
---dest-server https://kubernetes.default.svc \
---dest-namespace default \
---helm-set replicaCount=3
-
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d

@@ -3,5 +3,6 @@ kind: Kustomization
 
 resources:
   - argocd/project-guestbook.yaml
+  - apps/ai-reliability.yaml
   - apps/guestbook.yaml
   - apps/observability.yaml

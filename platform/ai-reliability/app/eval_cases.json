@@ -1,0 +1,37 @@
+[
+  {
+    "id": "guestbook_indicators",
+    "question": "What service indicators does the guestbook workload expose today?",
+    "expected_result": "success",
+    "expected_documents": [
+      "observability-baseline.md"
+    ],
+    "expected_keywords": [
+      "indicator"
+    ]
+  },
+  {
+    "id": "ci_quality_gates",
+    "question": "What does the validation workflow enforce before merge?",
+    "expected_result": "success",
+    "expected_documents": [
+      "README.md",
+      "trivy-and-smoketest-notes.md"
+    ],
+    "expected_keywords": [
+      "trivy",
+      "smoke"
+    ]
+  },
+  {
+    "id": "readiness_drill",
+    "question": "What did the guestbook readiness drill teach us about rolling updates?",
+    "expected_result": "success",
+    "expected_documents": [
+      "failure-drill-guestbook-readiness.md"
+    ],
+    "expected_keywords": [
+      "readiness"
+    ]
+  }
+]
