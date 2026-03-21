@@ -1,126 +1,169 @@
 # Local Reliability Lab
 
-This repository is a hands-on platform lab for building interview-ready depth in Kubernetes, GitOps, observability, quality engineering, and AI reliability. The current base is a local `k3d/k3s` cluster with Traefik ingress, ArgoCD, and a Helm-based guestbook deployment. The goal is to evolve that base into a small but disciplined environment that demonstrates how reliable systems are built and operated.
+This repository is a local GitOps and reliability-engineering lab built around `k3d/k3s`, Argo CD, Helm, Prometheus, Grafana, and a small AI document-QA service. It is meant to show how platform changes are validated, deployed, observed, and recovered through Git rather than through manual cluster drift.
 
-## Current State
+## Run Locally
 
-The lab already covers the core control-plane workflow:
+### Prerequisites
 
-- local Kubernetes via `k3d`
-- Traefik ingress routing
-- ArgoCD UI and CLI access
-- GitOps-style application deployment
-- initial Helm chart work in [`helm-guestbook`](./helm-guestbook)
+- Docker or Docker Desktop with enough resources to run `k3d` and Argo CD
+- `kubectl`
+- `k3d`
+- optional but useful: `argocd` CLI
 
-The repository now also includes an initial GitOps scaffold:
+### Create The Cluster
 
-- [`apps/guestbook`](./apps/guestbook) for workload ownership and app notes
-- [`apps/ai-reliability-service`](./apps/ai-reliability-service) for a grounded document-QA workload and eval harness
-- [`environments/local`](./environments/local) for the local cluster's ArgoCD-managed resources
-- [`platform/argocd`](./platform/argocd) for ArgoCD bootstrap manifests
-- [`platform/observability`](./platform/observability) for the local observability baseline
-- [`platform/ai-reliability`](./platform/ai-reliability) for the AI reliability workload
+Run from WSL or a Linux shell:
 
-That is enough to move beyond basic setup and focus on operational patterns.
+```bash
+k3d cluster create my-practice-cluster -p "8080:80@loadbalancer" --agents 2
+```
 
-## Target Outcome
+This exposes Traefik on `localhost:8080`.
 
-This repository should grow into a local platform that demonstrates:
+### Install Argo CD
 
-- GitOps-managed Kubernetes resources through ArgoCD and Helm
-- observability with dashboards, alerts, and traceable failure modes
-- SLI/SLO thinking, including availability and latency targets
-- CI-enforced quality and security gates
-- deliberate failure injection and recovery exercises
-- a small AI-powered workload with evaluation, replay, and telemetry
-- event-driven autoscaling patterns for queue-based workloads
+```bash
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl apply -f argocd-ingress.yaml
+```
 
-## Build Plan
+Initial admin password:
 
-### 1. GitOps Foundation
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+```
 
-Restructure the repo to manage applications declaratively in Git. Add environment-aware manifests or Helm values, then manage them through ArgoCD `Application` manifests or an app-of-apps pattern. The repository should become the source of truth, with CLI usage reserved for inspection, sync, and troubleshooting.
+### Bootstrap The Lab
 
-This step is now active:
+Apply the root Argo CD application:
 
-- the root ArgoCD bootstrap app lives at [`platform/argocd/root-application.yaml`](./platform/argocd/root-application.yaml)
-- the local environment lives at [`environments/local`](./environments/local)
-- the Helm-backed guestbook app lives at [`environments/local/apps/guestbook.yaml`](./environments/local/apps/guestbook.yaml)
+```bash
+kubectl apply -f platform/argocd/root-application.yaml
+```
 
-The guestbook workload now runs from the Helm chart in this repository, with ArgoCD automated sync, prune, and self-heal enabled.
+That root app targets [`environments/local`](./environments/local), which creates:
 
-### 2. Observability Baseline
+- the `local-lab` Argo CD project
+- the Helm-backed guestbook application
+- the observability stack application
+- the AI reliability application
 
-Install and configure a minimal observability stack such as Prometheus, Grafana, and OpenTelemetry-compatible components. The local baseline now uses Prometheus, Grafana, Blackbox Exporter, and an OpenTelemetry Collector. Define at least two service indicators for the guestbook app:
+### Access
 
-- availability
-- request latency
+Traefik routes everything through `localhost:8080` by host header:
 
-Add dashboards and at least one alert so the lab reflects real operating expectations rather than successful deployment alone.
+- `http://argocd.localhost:8080`
+- `http://guestbook.localhost:8080`
+- `http://grafana.localhost:8080`
+- `http://prometheus.localhost:8080`
+- `http://ai-lab.localhost:8080`
 
-### 3. Quality And Security Gates
+If local hostname resolution is awkward on Windows, you can still test directly with curl:
 
-Add CI workflows that validate infrastructure and manifests on every change. The baseline should include:
+```bash
+curl -H 'Host: ai-lab.localhost' http://localhost:8080/
+```
+
+The AI service is an API, not a browser UI. Its primary route is:
+
+```bash
+curl -H 'Host: ai-lab.localhost' \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"What does the validation workflow enforce before merge?"}' \
+  http://localhost:8080/ask
+```
+
+## Implemented Features
+
+### GitOps Delivery
+
+- Argo CD app-of-apps bootstrap in [`platform/argocd`](./platform/argocd)
+- environment-managed applications in [`environments/local`](./environments/local)
+- automated sync with `prune` and `selfHeal`
+- Helm-backed guestbook deployment from [`helm-guestbook`](./helm-guestbook)
+
+### Workloads
+
+- `guestbook-ui`: a simple web workload used to exercise deployment, observability, and failure drills
+- `ai-reliability`: a deterministic document-QA service in [`platform/ai-reliability`](./platform/ai-reliability) that supports:
+  - grounded retrieval over a curated Markdown corpus
+  - structured JSON responses
+  - replayable eval cases
+  - Prometheus-friendly latency and workflow metrics
+
+### Observability
+
+- Prometheus, Grafana, Blackbox Exporter, and OpenTelemetry Collector in [`platform/observability`](./platform/observability)
+- guestbook SLIs for availability and latency
+- AI service SLIs for workflow completion and structured-output validity
+- Argo CD control-plane metrics and dashboarding
+- scheduled `k6` traffic for both guestbook and the AI service
+
+More detail lives in [`docs/observability-baseline.md`](./docs/observability-baseline.md).
+
+### Failure Drills
+
+- guestbook readiness regression drill in [`failure-drill-guestbook-readiness.md`](./failure-drill-guestbook-readiness.md)
+- AI internal application failure drill in [`failure-drill-ai-internal-application-failure.md`](./failure-drill-ai-internal-application-failure.md)
+
+These drills are intentionally GitOps-oriented: the failure is introduced through Git, detected through metrics and dashboards, and recovered by reverting Git.
+
+## Reliability And Quality In The Operational Flow
+
+This repo is designed so reliability and QA are part of the normal delivery path, not a separate afterthought.
+
+### Before Merge
+
+GitHub Actions validates infrastructure and runtime behavior through:
 
 - `helm lint`
 - `helm template`
-- YAML validation
+- Kustomize rendering
+- YAML parsing
 - Kubernetes schema validation
-- container or manifest vulnerability scanning
-- infrastructure policy checks
+- Trivy config scanning
+- deterministic AI eval execution
+- an ephemeral `kind` smoke test for the guestbook chart
 
-The point is to show that reliability and quality are enforced before deployment, not inspected afterward.
+The current validation workflow lives in [`.github/workflows/validate-manifests.yaml`](./.github/workflows/validate-manifests.yaml).
 
-The repository now includes a GitHub Actions validation workflow for Helm rendering, Kustomize rendering, client-side manifest parsing, Kubernetes schema validation, Trivy config scanning, and an ephemeral kind-based smoke test that verifies the guestbook chart can deploy and serve traffic before merge.
+### After Merge
 
-A short write-up on why the Trivy scan and smoke test were worth keeping lives in [`trivy-and-smoketest-notes.md`](./trivy-and-smoketest-notes.md).
+Protected `main` is the deployment source of truth. Argo CD reconciles from Git into the cluster. That means:
 
-That write-up also now captures a related CI lesson: security tools and GitHub Actions are themselves part of the software supply chain, so the repository treats dependency trust, pinning, and blast-radius reduction as part of the quality discussion rather than as a separate concern.
+- manual cluster changes are not the persistent source of truth
+- config changes in observability trigger pod rollouts through hashed Kustomize `ConfigMap` names
+- Argo CD sync drift and repo-server failure are themselves observable
 
-### 4. Failure Drills
+### Security And Supply Chain
 
-Use ArgoCD self-heal, pruning, broken readiness checks, and bad configuration changes as controlled failure exercises. Each drill should produce a short runbook describing:
+The pipeline includes Trivy config scanning, but the more useful lesson was operational:
 
-- expected symptom
-- detection path
-- recovery path
-- follow-up hardening action
+- scanners found real baseline hardening misses
+- smoke tests caught runtime regressions that static checks missed
+- CI dependency trust is itself a supply-chain problem
 
-### 5. AI Reliability Workload
+Those notes are captured in [`trivy-and-smoketest-notes.md`](./trivy-and-smoketest-notes.md).
 
-Add a small AI-backed service that supports:
+## Repository Layout
 
-- retrieval over a small document set
-- structured JSON output
-- evaluation prompts and replay cases
-- prompt, retrieval, and latency telemetry
-- token usage visibility
+- [`helm-guestbook`](./helm-guestbook): Helm chart for the guestbook workload
+- [`platform/argocd`](./platform/argocd): Argo CD bootstrap manifest
+- [`platform/observability`](./platform/observability): Prometheus, Grafana, OTEL collector, load generation, and dashboards
+- [`platform/ai-reliability`](./platform/ai-reliability): AI reliability service, corpus, and deployment manifests
+- [`environments/local`](./environments/local): Argo CD-managed local environment definitions
+- [`apps/guestbook`](./apps/guestbook): guestbook notes
+- [`apps/ai-reliability-service`](./apps/ai-reliability-service): lightweight entry point for the AI workload
 
-This is the bridge from general SRE practice into AI reliability, evaluation, and observability.
+## Current Focus
 
-The first version of that workload now exists as a deterministic document-QA service over the repository's own reliability notes. It exposes structured JSON responses, request-latency metrics, workflow completion signals, and a small replay/eval dataset that can run in CI without needing a paid model backend.
+The lab is now far enough along that the next valuable work is less about basic cluster setup and more about service behavior:
 
-### 6. Event-Driven Scaling
+- testing AI service degradation and recovery
+- tightening AI-specific SLI/SLO definitions
+- expanding replay and eval coverage
+- pushing the AI workload toward richer traces and model-backed behavior without losing deterministic validation
 
-Add a lightweight queue-based service and autoscale it with KEDA. This gives the lab a stronger story around asynchronous systems, scaling signals, and workload behavior under pressure.
-
-## Suggested Execution Order
-
-1. GitOps repo structure and ArgoCD application definitions
-2. CI quality and security gates
-3. Observability stack, dashboards, and alerts
-4. Failure drills and runbooks
-5. AI workload with evaluation and telemetry
-6. Queue-driven autoscaling with KEDA
-
-## Immediate Next Steps
-
-1. Let the GitHub Actions validation workflow run on the next push and fix any gaps it exposes.
-2. Recover the guestbook readiness drill by reverting the bad probe path and confirming the rollout completes.
-3. Verify Prometheus is probing `guestbook-ui` and that the `Guestbook Overview` dashboard loads in Grafana.
-4. Add application-level metrics or OTLP traces from a future workload into the OpenTelemetry Collector.
-5. Extend the AI workload from deterministic retrieval into a model-backed path with prompt traces and richer evaluation scoring.
-
-## Operating Principle
-
-This lab is not meant to be a collection of one-off deployments. It is meant to show disciplined platform engineering: declarative delivery, measurable reliability, visible quality, secure defaults, and enough AI integration to discuss modern production concerns with specificity.
+Deferred work is tracked in [`TODO.md`](./TODO.md).

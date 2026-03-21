@@ -40,8 +40,8 @@ spec:
               mountPath: /etc/prometheus/prometheus.yml
               subPath: prometheus.yml
             - name: config
-              mountPath: /etc/prometheus/rules/guestbook-alerts.yml
-              subPath: guestbook-alerts.yml
+              mountPath: /etc/prometheus/rules/alerts.yml
+              subPath: alerts.yml
             - name: data
               mountPath: /prometheus
       volumes:
