@@ -122,6 +122,25 @@ jobs:
           kubectl rollout status deployment/guestbook-ui --timeout=180s
           kubectl wait --for=condition=available deployment/guestbook-ui --timeout=180s
 
+      - name: Smoke test diagnostics
+        if: failure()
+        run: |
+          kubectl get all
+          echo "---"
+          kubectl describe deployment guestbook-ui
+          echo "---"
+          kubectl get pods -l app=guestbook-ui -o wide
+          echo "---"
+          kubectl describe pods -l app=guestbook-ui
+          echo "---"
+          kubectl logs deployment/guestbook-ui --tail=100 || true
+          echo "---"
+          for pod in $(kubectl get pods -l app=guestbook-ui -o jsonpath='{.items[*].metadata.name}'); do
+            echo "### logs for ${pod}"
+            kubectl logs "$pod" --all-containers=true --tail=100 || true
+            echo "---"
+          done
+
       - name: Smoke test guestbook service
         run: |
           kubectl run guestbook-smoke \

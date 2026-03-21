@@ -53,16 +53,18 @@ spec:
             failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if .Values.telemetry.enabled }}
           volumeMounts:
-            - name: apache-logs
-              mountPath: {{ .Values.telemetry.apacheLogDir }}
             - name: apache-run
               mountPath: /var/run/apache2
             - name: apache-lock
               mountPath: /var/lock/apache2
+            - name: apache-lib
+              mountPath: /var/lib/apache2
             - name: apache-tmp
               mountPath: /tmp
+          {{- if .Values.telemetry.enabled }}
+            - name: apache-logs
+              mountPath: {{ .Values.telemetry.apacheLogDir }}
             - name: guestbook-telemetry-config
               mountPath: /etc/apache2/conf-enabled/guestbook-status.conf
               subPath: guestbook-status.conf
@@ -101,15 +103,17 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.telemetry.enabled }}
       volumes:
-        - name: apache-logs
-          emptyDir: {}
         - name: apache-run
           emptyDir: {}
         - name: apache-lock
           emptyDir: {}
+        - name: apache-lib
+          emptyDir: {}
         - name: apache-tmp
+          emptyDir: {}
+      {{- if .Values.telemetry.enabled }}
+        - name: apache-logs
           emptyDir: {}
         - name: guestbook-telemetry-config
           configMap:

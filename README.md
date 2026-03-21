@@ -71,6 +71,8 @@ The point is to show that reliability and quality are enforced before deployment
 
 The repository now includes a GitHub Actions validation workflow for Helm rendering, Kustomize rendering, client-side manifest parsing, Kubernetes schema validation, Trivy config scanning, and an ephemeral kind-based smoke test that verifies the guestbook chart can deploy and serve traffic before merge.
 
+A short write-up on why the Trivy scan and smoke test were worth keeping lives in [`trivy-and-smoketest-notes.md`](./trivy-and-smoketest-notes.md).
+
 ### 4. Failure Drills
 
 Use ArgoCD self-heal, pruning, broken readiness checks, and bad configuration changes as controlled failure exercises. Each drill should produce a short runbook describing:
