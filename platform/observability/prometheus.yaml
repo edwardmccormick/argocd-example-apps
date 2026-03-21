@@ -36,6 +36,11 @@ data:
         static_configs:
           - targets:
               - otel-collector.observability.svc.cluster.local:8889
+
+      - job_name: ai-docqa
+        static_configs:
+          - targets:
+              - ai-reliability.ai-lab.svc.cluster.local:8080
   guestbook-alerts.yml: |
     groups:
       - name: guestbook.sli
@@ -64,6 +69,32 @@ data:
             annotations:
               summary: Guestbook latency is elevated
               description: Guestbook average request latency has exceeded 250 milliseconds for at least 10 minutes.
+      - name: ai-docqa.sli
+        rules:
+          - record: ai_docqa:workflow_completion_ratio:5m
+            expr: sum(rate(ai_docqa_workflow_completions_total{result="success"}[5m])) / clamp_min(sum(rate(ai_docqa_workflow_completions_total[5m])), 1e-9)
+          - record: ai_docqa:structured_output_validity_ratio:5m
+            expr: sum(rate(ai_docqa_structured_output_total{result="valid"}[5m])) / clamp_min(sum(rate(ai_docqa_structured_output_total[5m])), 1e-9)
+          - record: ai_docqa:latency_p95_seconds:5m
+            expr: histogram_quantile(0.95, sum by (le) (rate(ai_docqa_request_duration_seconds_bucket[5m])))
+      - name: ai-docqa.rules
+        rules:
+          - alert: AiDocQaWorkflowCompletionLow
+            expr: ai_docqa:workflow_completion_ratio:5m < 0.95
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: AI document QA workflow completion is degraded
+              description: Successful grounded completions have fallen below 95 percent over the trailing 5 minutes.
+          - alert: AiDocQaLatencyHigh
+            expr: ai_docqa:latency_p95_seconds:5m > 1
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: AI document QA latency is elevated
+              description: The p95 request latency has exceeded one second for at least 10 minutes.
 ---
 apiVersion: apps/v1
 kind: Deployment

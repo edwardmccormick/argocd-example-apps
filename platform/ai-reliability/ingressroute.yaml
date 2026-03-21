@@ -1,0 +1,13 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ai-reliability
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`ai-lab.localhost`)
+      kind: Rule
+      services:
+        - name: ai-reliability
+          port: 8080

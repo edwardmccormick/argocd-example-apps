@@ -47,12 +47,16 @@ jobs:
       - name: Render local environment
         run: kubectl kustomize ./environments/local > /tmp/environments-local.yaml
 
+      - name: Render AI reliability platform
+        run: kubectl kustomize ./platform/ai-reliability > /tmp/ai-reliability.yaml
+
       - name: YAML syntax check
         run: |
           yamllint -d "{extends: default, rules: {line-length: disable, document-start: disable, new-lines: disable, new-line-at-end-of-file: disable, truthy: disable}}" \
             ./argocd-ingress.yaml \
             ./platform/argocd/root-application.yaml \
             ./environments/local \
+            ./platform/ai-reliability \
             ./platform/observability \
             ./helm-guestbook/values.yaml \
             ./helm-guestbook/value-production.yaml \
@@ -74,8 +78,15 @@ jobs:
           kubeconform -strict -summary -ignore-missing-schemas /tmp/guestbook-default.yaml
           kubeconform -strict -summary -ignore-missing-schemas /tmp/guestbook-production.yaml
           kubeconform -strict -summary -ignore-missing-schemas /tmp/environments-local.yaml
+          kubeconform -strict -summary -ignore-missing-schemas /tmp/ai-reliability.yaml
           kubeconform -strict -summary -ignore-missing-schemas ./argocd-ingress.yaml
           kubeconform -strict -summary -ignore-missing-schemas ./platform/argocd/root-application.yaml
+
+      - name: Run deterministic AI evals
+        run: |
+          python3 ./platform/ai-reliability/app/run_eval.py \
+            --corpus-dir ./platform/ai-reliability/corpus \
+            --eval-file ./platform/ai-reliability/app/eval_cases.json
 
       - name: Set up Trivy
         run: |

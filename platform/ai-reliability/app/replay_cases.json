@@ -1,0 +1,14 @@
+[
+  {
+    "id": "workflow_completion_baseline",
+    "request": {
+      "question": "What AI-specific reliability capability should this lab add next?"
+    }
+  },
+  {
+    "id": "quality_gate_summary",
+    "request": {
+      "question": "Why are Trivy and the smoke test both useful in this repository?"
+    }
+  }
+]
