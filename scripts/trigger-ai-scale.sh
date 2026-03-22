@@ -22,7 +22,7 @@ export -f send_request
 printf 'target=%s host=%s concurrency=%s total_requests=%s\n' \
   "${BASE_URL}" "${HOST_HEADER}" "${CONCURRENCY}" "${TOTAL_REQUESTS}"
 
-seq 1 "${TOTAL_REQUESTS}" | xargs -I{} -P "${CONCURRENCY}" bash -lc '
+seq 1 "${TOTAL_REQUESTS}" | xargs -P "${CONCURRENCY}" -n 1 bash -c '
   questions=(
     "What operational value did the Trivy and smoke-test notes describe?"
     "What did the observability baseline say about service indicators?"
