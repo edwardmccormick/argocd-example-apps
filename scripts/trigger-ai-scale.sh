@@ -7,13 +7,6 @@ CONCURRENCY="${CONCURRENCY:-20}"
 TOTAL_REQUESTS="${TOTAL_REQUESTS:-400}"
 TOP_K="${TOP_K:-3}"
 
-QUESTIONS=(
-  "What operational value did the Trivy and smoke-test notes describe?"
-  "What did the observability baseline say about service indicators?"
-  "What happened in the guestbook readiness failure drill?"
-  "What did the ETL modernization writeup emphasize?"
-)
-
 send_request() {
   local question="$1"
   curl -sS \
