@@ -19,7 +19,7 @@ send_request() {
   curl -sS \
     -H "Host: ${HOST_HEADER}" \
     -H "Content-Type: application/json" \
-    -d "{\"question\":\"${question}\",\"top_k\":${TOP_K}}" \
+    -d "$(jq -n --arg question "$question" --argjson top_k "$TOP_K" '{question: $question, top_k: $top_k}')" \
     "${BASE_URL}" >/dev/null
 }
 
