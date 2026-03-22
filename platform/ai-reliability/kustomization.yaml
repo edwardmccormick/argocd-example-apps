@@ -11,6 +11,7 @@ resources:
   - deployment.yaml
   - service.yaml
   - ingressroute.yaml
+  - hpa.yaml
 
 configMapGenerator:
   - name: ai-reliability-app

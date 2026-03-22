@@ -5,7 +5,6 @@ This repository is a small Argo CD example app repo with two main parts:
 
 - `helm-guestbook/`: Helm chart metadata and environment values for the guestbook app.
 - `argocd-ingress.yaml`: Traefik `IngressRoute` for exposing the Argo CD server.
-- `scratchpad.txt`: local notes; do not rely on it as source of truth.
 
 Within `helm-guestbook/`, keep chart metadata in `Chart.yaml`, shared defaults in `values.yaml`, and environment-specific overrides in files such as `value-production.yaml`.
 
