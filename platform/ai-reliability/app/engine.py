@@ -287,6 +287,7 @@ def extract_json_object(payload: str) -> dict:
 
 def call_gemini_generate_content(question: str, hits: list[dict], config: GenerativeConfig) -> dict:
     allowed_chunk_ids = [hit["chunk_id"] for hit in hits]
+    allowed_chunk_id_set = set(allowed_chunk_ids)
     context_lines = []
     for hit in hits:
         context_lines.append(
@@ -365,7 +366,7 @@ def call_gemini_generate_content(question: str, hits: list[dict], config: Genera
 
     answer = compact_whitespace(str(parsed.get("answer", "")))
     grounded = bool(parsed.get("grounded", False))
-    cited_chunk_ids = [str(item) for item in parsed.get("cited_chunk_ids", []) if str(item) in allowed_chunk_ids]
+    cited_chunk_ids = [str(item) for item in parsed.get("cited_chunk_ids", []) if str(item) in allowed_chunk_id_set]
     usage = raw.get("usageMetadata", {})
 
     return {
