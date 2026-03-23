@@ -269,12 +269,12 @@ data:
           "id": 2,
           "targets": [
             {
-              "expr": "ai_docqa:structured_output_validity_ratio:5m",
+              "expr": "ai_docqa:insufficient_context_ratio:5m",
               "refId": "A"
             }
           ],
-          "title": "Structured Output Validity",
-          "type": "timeseries"
+          "title": "Insufficient Context Ratio",
+          "type": "stat"
         },
         {
           "datasource": {
@@ -310,14 +310,41 @@ data:
           },
           "fieldConfig": {
             "defaults": {
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 8
+          },
+          "id": 6,
+          "targets": [
+            {
+              "expr": "ai_docqa:structured_output_validity_ratio:5m",
+              "refId": "A"
+            }
+          ],
+          "title": "Structured Output Validity",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
               "unit": "short"
             },
             "overrides": []
           },
           "gridPos": {
             "h": 8,
-            "w": 12,
-            "x": 0,
+            "w": 8,
+            "x": 8,
             "y": 8
           },
           "id": 4,
@@ -344,8 +371,8 @@ data:
           },
           "gridPos": {
             "h": 8,
-            "w": 12,
-            "x": 12,
+            "w": 8,
+            "x": 16,
             "y": 8
           },
           "id": 5,
