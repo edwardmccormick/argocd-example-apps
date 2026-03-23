@@ -171,7 +171,7 @@
       "id": 4,
       "targets": [
         {
-          "expr": "sum(rate(ai_docqa_requests_total{endpoint=\"/ask\"}[5m])) by (status)",
+          "expr": "sum(rate(ai_docqa_requests_total{job=~\"ai-docqa-(stable|canary)\",endpoint=\"/ask\"}[5m])) by (status)",
           "legendFormat": "{{status}}",
           "refId": "A"
         }
@@ -199,7 +199,7 @@
       "id": 5,
       "targets": [
         {
-          "expr": "sum(rate(ai_docqa_retrieval_hits_total[5m]))",
+          "expr": "sum(rate(ai_docqa_retrieval_hits_total{job=~\"ai-docqa-(stable|canary)\"}[5m]))",
           "refId": "A"
         }
       ],
@@ -225,4 +225,3 @@
   "uid": "ai-docqa-overview",
   "version": 1
 }
-

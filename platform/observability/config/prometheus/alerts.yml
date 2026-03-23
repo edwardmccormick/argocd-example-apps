@@ -28,15 +28,15 @@ groups:
   - name: ai-docqa.sli
     rules:
       - record: ai_docqa:request_rate:5m
-        expr: sum(rate(ai_docqa_requests_total{endpoint="/ask"}[5m]))
+        expr: sum(rate(ai_docqa_requests_total{job=~"ai-docqa-(stable|canary)",endpoint="/ask"}[5m]))
       - record: ai_docqa:insufficient_context_ratio:5m
-        expr: sum(rate(ai_docqa_requests_total{endpoint="/ask",status="insufficient_context"}[5m])) / clamp_min(sum(rate(ai_docqa_requests_total{endpoint="/ask"}[5m])), 1e-9)
+        expr: sum(rate(ai_docqa_requests_total{job=~"ai-docqa-(stable|canary)",endpoint="/ask",status="insufficient_context"}[5m])) / clamp_min(sum(rate(ai_docqa_requests_total{job=~"ai-docqa-(stable|canary)",endpoint="/ask"}[5m])), 1e-9)
       - record: ai_docqa:workflow_completion_ratio:5m
-        expr: sum(rate(ai_docqa_workflow_completions_total{result="success"}[5m])) / clamp_min(sum(rate(ai_docqa_workflow_completions_total[5m])), 1e-9)
+        expr: sum(rate(ai_docqa_workflow_completions_total{job=~"ai-docqa-(stable|canary)",result="success"}[5m])) / clamp_min(sum(rate(ai_docqa_workflow_completions_total{job=~"ai-docqa-(stable|canary)"}[5m])), 1e-9)
       - record: ai_docqa:structured_output_validity_ratio:5m
-        expr: sum(rate(ai_docqa_structured_output_total{result="valid"}[5m])) / clamp_min(sum(rate(ai_docqa_structured_output_total[5m])), 1e-9)
+        expr: sum(rate(ai_docqa_structured_output_total{job=~"ai-docqa-(stable|canary)",result="valid"}[5m])) / clamp_min(sum(rate(ai_docqa_structured_output_total{job=~"ai-docqa-(stable|canary)"}[5m])), 1e-9)
       - record: ai_docqa:latency_p95_seconds:5m
-        expr: histogram_quantile(0.95, sum by (le) (rate(ai_docqa_request_duration_seconds_bucket[5m])))
+        expr: histogram_quantile(0.95, sum by (le) (rate(ai_docqa_request_duration_seconds_bucket{job=~"ai-docqa-(stable|canary)"}[5m])))
   - name: ai-docqa.rules
     rules:
       - alert: AiDocQaWorkflowCompletionLow

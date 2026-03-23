@@ -20,6 +20,16 @@ spec:
       name: ai-reliability
       jsonPointers:
         - /spec/replicas
+    - group: ""
+      kind: Service
+      name: ai-reliability-stable
+      jsonPointers:
+        - /spec/selector
+    - group: ""
+      kind: Service
+      name: ai-reliability-canary
+      jsonPointers:
+        - /spec/selector
   syncPolicy:
     automated:
       prune: true

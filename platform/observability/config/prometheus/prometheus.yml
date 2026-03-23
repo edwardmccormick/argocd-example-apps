@@ -31,11 +31,6 @@ scrape_configs:
       - targets:
           - otel-collector.observability.svc.cluster.local:8889
 
-  - job_name: ai-docqa
-    static_configs:
-      - targets:
-          - ai-reliability.ai-lab.svc.cluster.local:8080
-
   - job_name: ai-docqa-stable
     static_configs:
       - targets:
