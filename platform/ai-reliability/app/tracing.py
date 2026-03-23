@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+import queue
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -30,8 +32,27 @@ class LangSmithClient:
         self.endpoint = os.environ.get("LANGSMITH_ENDPOINT", "https://api.smith.langchain.com").strip().rstrip("/")
         self.project = os.environ.get("LANGSMITH_PROJECT", "local-reliability-lab").strip() or "local-reliability-lab"
         self.workspace_id = os.environ.get("LANGSMITH_WORKSPACE_ID", "").strip()
-        self.timeout_seconds = float(os.environ.get("LANGSMITH_TIMEOUT_SECONDS", "2.5"))
+        self.timeout_seconds = self._parse_timeout(os.environ.get("LANGSMITH_TIMEOUT_SECONDS", "2.5"))
         self.available = self.enabled and bool(self.api_key)
+        self._queue: queue.Queue[tuple[str, str, dict[str, Any]]] = queue.Queue(maxsize=256)
+        self._worker: threading.Thread | None = None
+
+        if self.available:
+            self._worker = threading.Thread(target=self._drain_queue, name="langsmith-tracing", daemon=True)
+            self._worker.start()
+
+    def _parse_timeout(self, raw_value: str) -> float:
+        default = 2.5
+        try:
+            parsed = float(raw_value)
+        except (TypeError, ValueError):
+            logging.warning(
+                "Invalid LANGSMITH_TIMEOUT_SECONDS '%s'; falling back to %.1f seconds",
+                raw_value,
+                default,
+            )
+            return default
+        return min(max(parsed, 0.2), 5.0)
 
     def _headers(self) -> dict[str, str]:
         headers = {
@@ -78,6 +99,22 @@ class LangSmithClient:
                 )
             )
 
+    def _enqueue(self, method: str, path: str, payload: dict[str, Any]) -> None:
+        if not self.available:
+            return
+        try:
+            self._queue.put_nowait((method, path, payload))
+        except queue.Full:
+            logging.info(json.dumps({"event": "langsmith_trace_dropped", "path": path, "reason": "queue_full"}))
+
+    def _drain_queue(self) -> None:
+        while True:
+            method, path, payload = self._queue.get()
+            try:
+                self._request(method, path, payload)
+            finally:
+                self._queue.task_done()
+
     def start_run(
         self,
         name: str,
@@ -111,7 +148,7 @@ class LangSmithClient:
             payload["extra"] = {"metadata": metadata}
         if tags:
             payload["tags"] = tags
-        self._request("POST", "/runs", payload)
+        self._enqueue("POST", "/runs", payload)
         return run
 
     def end_run(
@@ -136,4 +173,4 @@ class LangSmithClient:
             merged_metadata.update(metadata)
         if merged_metadata:
             payload["extra"] = {"metadata": merged_metadata}
-        self._request("PATCH", f"/runs/{run.id}", payload)
+        self._enqueue("PATCH", f"/runs/{run.id}", payload)
