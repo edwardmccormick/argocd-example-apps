@@ -11,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from engine import answer_question, load_corpus
+from tracing import LangSmithClient
 
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -143,6 +144,7 @@ class Metrics:
 
 METRICS = Metrics()
 CHUNKS = load_corpus(CORPUS_DIR)
+LANGSMITH = LangSmithClient()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -200,6 +202,7 @@ class Handler(BaseHTTPRequestHandler):
                     "default_mode": DEFAULT_MODE,
                     "supported_modes": ["extractive", "generative"],
                     "corpus_chunks": len(CHUNKS),
+                    "langsmith_tracing_enabled": LANGSMITH.available,
                     "routes": ["/ask", "/healthz", "/readyz", "/metrics"],
                 }
             )
@@ -214,6 +217,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         started = time.perf_counter()
+        root_run = None
         try:
             content_length = int(self.headers.get("Content-Length", "0"))
             body = self.rfile.read(content_length)
@@ -221,7 +225,15 @@ class Handler(BaseHTTPRequestHandler):
             question = payload.get("question", "")
             query_mode = parse_qs(parsed.query).get("mode", [None])[0]
             mode = payload.get("mode") or query_mode or DEFAULT_MODE
-            response = answer_question(question, CHUNKS, top_k=self._parse_top_k(payload), mode=mode)
+            top_k = self._parse_top_k(payload)
+            root_run = LANGSMITH.start_run(
+                name="ai_docqa_request",
+                run_type="chain",
+                inputs={"question": question, "mode": mode, "top_k": top_k},
+                metadata={"service": "ai-docqa"},
+                tags=["ai-docqa", mode],
+            )
+            response = answer_question(question, CHUNKS, top_k=top_k, mode=mode, tracer=LANGSMITH, parent_run=root_run)
             latency_ms = round((time.perf_counter() - started) * 1000.0, 2)
             response["latency_ms"] = latency_ms
 
@@ -249,6 +261,19 @@ class Handler(BaseHTTPRequestHandler):
                     }
                 )
             )
+            LANGSMITH.end_run(
+                root_run,
+                outputs={
+                    "result": response["result"],
+                    "grounded": response["grounded"],
+                    "mode": response["mode"],
+                    "citation_count": len(response["citations"]),
+                    "citations": [citation["chunk_id"] for citation in response["citations"]],
+                    "latency_ms": latency_ms,
+                    "token_usage": response.get("token_usage", {}),
+                    "answer_preview": response["answer"][:400],
+                },
+            )
             self._send_json(response)
         except Exception as exc:
             latency_ms = round((time.perf_counter() - started) * 1000.0, 2)
@@ -269,6 +294,11 @@ class Handler(BaseHTTPRequestHandler):
                     }
                 )
             )
+            LANGSMITH.end_run(
+                root_run,
+                outputs={"mode": payload.get("mode") if isinstance(payload, dict) else "unknown"} if "payload" in locals() else None,
+                error_message=str(exc),
+            )
             self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
 
     def log_message(self, format: str, *args) -> None:
@@ -277,7 +307,16 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> None:
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    logging.info(json.dumps({"event": "startup", "port": PORT, "corpus_chunks": len(CHUNKS)}))
+    logging.info(
+        json.dumps(
+            {
+                "event": "startup",
+                "port": PORT,
+                "corpus_chunks": len(CHUNKS),
+                "langsmith_tracing_enabled": LANGSMITH.available,
+            }
+        )
+    )
     server.serve_forever()
 
 

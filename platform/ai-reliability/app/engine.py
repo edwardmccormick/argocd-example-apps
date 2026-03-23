@@ -6,7 +6,10 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from urllib import error, request
+
+from tracing import LangSmithClient, LangSmithRun
 
 
 STOPWORDS = {
@@ -285,7 +288,13 @@ def extract_json_object(payload: str) -> dict:
         return json.loads(match.group(0))
 
 
-def call_gemini_generate_content(question: str, hits: list[dict], config: GenerativeConfig) -> dict:
+def call_gemini_generate_content(
+    question: str,
+    hits: list[dict],
+    config: GenerativeConfig,
+    tracer: LangSmithClient | None = None,
+    parent_run: LangSmithRun | None = None,
+) -> dict:
     allowed_chunk_ids = [hit["chunk_id"] for hit in hits]
     allowed_chunk_id_set = set(allowed_chunk_ids)
     context_lines = []
@@ -347,17 +356,41 @@ def call_gemini_generate_content(question: str, hits: list[dict], config: Genera
         method="POST",
     )
 
+    llm_run = None
+    if tracer and parent_run:
+        llm_run = tracer.start_run(
+            name="gemini_generate_content",
+            run_type="llm",
+            inputs={
+                "question": question,
+                "provider": config.provider,
+                "model": config.model,
+                "allowed_chunk_ids": allowed_chunk_ids,
+                "context_documents": [hit["document"] for hit in hits],
+                "context_headings": [hit["heading"] for hit in hits],
+            },
+            parent_run_id=parent_run.id,
+            metadata={"mode": "generative"},
+            tags=["ai-docqa", "generative", "gemini"],
+        )
+
     try:
         with request.urlopen(req, timeout=30) as response:
             raw = json.loads(response.read().decode("utf-8"))
     except error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
+        if tracer and llm_run:
+            tracer.end_run(llm_run, error_message=f"{exc.code} {detail[:500]}")
         raise ValueError(f"generative provider request failed: {exc.code} {detail}") from None
     except error.URLError as exc:
+        if tracer and llm_run:
+            tracer.end_run(llm_run, error_message=str(exc.reason))
         raise ValueError(f"generative provider request failed: {exc.reason}") from None
 
     candidates = raw.get("candidates", [])
     if not candidates:
+        if tracer and llm_run:
+            tracer.end_run(llm_run, error_message="generative provider returned no candidates")
         raise ValueError("generative provider returned no candidates")
 
     parts = candidates[0].get("content", {}).get("parts", [])
@@ -369,7 +402,7 @@ def call_gemini_generate_content(question: str, hits: list[dict], config: Genera
     cited_chunk_ids = [str(item) for item in parsed.get("cited_chunk_ids", []) if str(item) in allowed_chunk_id_set]
     usage = raw.get("usageMetadata", {})
 
-    return {
+    result = {
         "answer": answer,
         "grounded": grounded,
         "cited_chunk_ids": cited_chunk_ids,
@@ -378,9 +411,27 @@ def call_gemini_generate_content(question: str, hits: list[dict], config: Genera
             "response_estimate": usage.get("candidatesTokenCount", estimate_tokens(answer or "insufficient context")),
         },
     }
+    if tracer and llm_run:
+        tracer.end_run(
+            llm_run,
+            outputs={
+                "answer_preview": answer[:300],
+                "grounded": grounded,
+                "cited_chunk_ids": cited_chunk_ids,
+                "token_usage": result["token_usage"],
+            },
+        )
+    return result
 
 
-def answer_question(question: str, chunks: list[Chunk], top_k: int = 3, mode: str = "extractive") -> dict:
+def answer_question(
+    question: str,
+    chunks: list[Chunk],
+    top_k: int = 3,
+    mode: str = "extractive",
+    tracer: LangSmithClient | None = None,
+    parent_run: LangSmithRun | None = None,
+) -> dict:
     question = compact_whitespace(question)
     if not question:
         raise ValueError("question must not be empty")
@@ -389,13 +440,34 @@ def answer_question(question: str, chunks: list[Chunk], top_k: int = 3, mode: st
     if mode not in {"extractive", "generative"}:
         raise ValueError(f"unsupported mode: {mode}")
 
+    retrieval_run = None
+    if tracer and parent_run:
+        retrieval_run = tracer.start_run(
+            name="retrieve_corpus_chunks",
+            run_type="retriever",
+            inputs={"question": question, "top_k": top_k},
+            parent_run_id=parent_run.id,
+            metadata={"mode": mode},
+            tags=["ai-docqa", "retrieval"],
+        )
+
     hits = retrieve(question, chunks, top_k=top_k)
+    if tracer and retrieval_run:
+        tracer.end_run(
+            retrieval_run,
+            outputs={
+                "hit_count": len(hits),
+                "documents": [hit["document"] for hit in hits],
+                "chunk_ids": [hit["chunk_id"] for hit in hits],
+                "scores": {hit["chunk_id"]: hit["score"] for hit in hits},
+            },
+        )
     if not hits or hits[0]["score"] < MIN_GROUNDED_SCORE:
         return insufficient_context_response(question, mode=mode)
 
     if mode == "generative":
         config = generative_config_from_env()
-        generated = call_gemini_generate_content(question, hits, config)
+        generated = call_gemini_generate_content(question, hits, config, tracer=tracer, parent_run=parent_run)
         citations_by_id = {hit["chunk_id"]: hit for hit in hits}
         citations = citation_payload([citations_by_id[chunk_id] for chunk_id in generated["cited_chunk_ids"]])
         grounded = generated["grounded"] and bool(citations)
