@@ -105,6 +105,18 @@ python3 ./platform/ai-reliability/app/run_eval.py \
   --mode generative
 ```
 
+Optional LangSmith tracing is also wired into the AI service. It is off by default and remains completely optional so the deterministic local path stays secret-free.
+
+To enable it, add `langsmith-api-key` to the same secret and set `LANGSMITH_TRACING` to `"true"` in [`platform/ai-reliability/rollout.yaml`](./platform/ai-reliability/rollout.yaml). Optionally add `langsmith-workspace-id` if your account requires it.
+
+This implementation emits:
+
+- one root trace per `/ask` request
+- one child retriever run containing retrieved documents and chunk ids
+- one child LLM run for Gemini calls in generative mode
+
+The trace captures the question, mode, top-k retrieval setting, selected chunks, answer preview, grounded/result status, citation ids, token usage, and latency. It uses a small direct HTTP client in [`platform/ai-reliability/app/tracing.py`](./platform/ai-reliability/app/tracing.py) so it fits the repo’s current no-packaging model.
+
 ## Implemented Features
 
 ### GitOps Delivery
@@ -123,6 +135,7 @@ python3 ./platform/ai-reliability/app/run_eval.py \
   - replayable eval cases
   - Prometheus-friendly latency and workflow metrics
   - an optional model-backed `generative` mode behind the same response schema
+  - optional LangSmith traces for request, retrieval, and model steps
 
 ### Observability
 

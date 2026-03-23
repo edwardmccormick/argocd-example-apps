@@ -34,6 +34,14 @@ spec:
               value: extractive
             - name: AI_GENERATIVE_PROVIDER
               value: gemini
+            - name: LANGSMITH_TRACING
+              value: "false"
+            - name: LANGSMITH_ENDPOINT
+              value: https://api.smith.langchain.com
+            - name: LANGSMITH_PROJECT
+              value: local-reliability-lab
+            - name: LANGSMITH_TIMEOUT_SECONDS
+              value: "2.5"
             - name: GEMINI_BASE_URL
               value: https://generativelanguage.googleapis.com/v1beta
             - name: GEMINI_MODEL
@@ -43,6 +51,18 @@ spec:
                 secretKeyRef:
                   name: ai-reliability-llm
                   key: gemini-api-key
+                  optional: true
+            - name: LANGSMITH_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ai-reliability-llm
+                  key: langsmith-api-key
+                  optional: true
+            - name: LANGSMITH_WORKSPACE_ID
+              valueFrom:
+                secretKeyRef:
+                  name: ai-reliability-llm
+                  key: langsmith-workspace-id
                   optional: true
             - name: PORT
               value: "8080"
