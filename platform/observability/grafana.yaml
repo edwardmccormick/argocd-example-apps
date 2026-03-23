@@ -267,6 +267,18 @@ data:
             "y": 0
           },
           "id": 2,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          },
           "targets": [
             {
               "expr": "ai_docqa:insufficient_context_ratio:5m",
