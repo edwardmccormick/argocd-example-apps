@@ -7,15 +7,23 @@ spec:
   project: local-lab
   source:
     repoURL: https://github.com/edwardmccormick/argocd-example-apps.git
-    targetRevision: HEAD
+    targetRevision: main
     path: platform/ai-reliability
   destination:
     server: https://kubernetes.default.svc
     namespace: ai-lab
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: ai-reliability
+      jsonPointers:
+        - /spec/replicas
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - RespectIgnoreDifferences=true
   info:
     - name: purpose
       value: Grounded document-QA workload for AI reliability, replay, and observability exercises.
