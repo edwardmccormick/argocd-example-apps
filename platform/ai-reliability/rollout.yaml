@@ -1,9 +1,10 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
 metadata:
   name: ai-reliability
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
   selector:
     matchLabels:
       app: ai-reliability
@@ -81,3 +82,31 @@ spec:
             name: ai-reliability-corpus
         - name: tmp
           emptyDir: {}
+  strategy:
+    canary:
+      stableService: ai-reliability-stable
+      canaryService: ai-reliability-canary
+      maxSurge: 1
+      maxUnavailable: 0
+      stableMetadata:
+        labels:
+          rollouts-phase: stable
+      canaryMetadata:
+        labels:
+          rollouts-phase: canary
+      steps:
+        - setWeight: 20
+        - pause:
+            duration: 30s
+        - analysis:
+            templates:
+              - templateName: ai-reliability-canary-analysis
+        - setWeight: 50
+        - pause:
+            duration: 30s
+        - analysis:
+            templates:
+              - templateName: ai-reliability-canary-analysis
+        - setWeight: 100
+        - pause:
+            duration: 15s

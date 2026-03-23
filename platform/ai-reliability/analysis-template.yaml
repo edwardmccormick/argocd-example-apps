@@ -1,0 +1,79 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: ai-reliability-canary-analysis
+spec:
+  args:
+    - name: canary-base-url
+      value: http://ai-reliability-canary.ai-lab.svc.cluster.local:8080
+    - name: prometheus-address
+      value: http://prometheus.observability.svc.cluster.local:9090
+  metrics:
+    - name: canary-ready
+      interval: 20s
+      count: 2
+      failureLimit: 1
+      successCondition: result.status == "ready" && result.corpus_chunks > 0
+      provider:
+        web:
+          url: "{{args.canary-base-url}}/readyz"
+          timeoutSeconds: 10
+          jsonPath: "{$}"
+    - name: canary-trivy-answer
+      interval: 20s
+      count: 2
+      failureLimit: 1
+      successCondition: result.grounded == true && result.result == "success"
+      provider:
+        web:
+          method: POST
+          url: "{{args.canary-base-url}}/ask"
+          timeoutSeconds: 10
+          headers:
+            - key: Content-Type
+              value: application/json
+          jsonBody:
+            question: What operational value did the Trivy and smoke-test notes describe?
+            top_k: 3
+          jsonPath: "{$}"
+    - name: canary-observability-answer
+      interval: 20s
+      count: 2
+      failureLimit: 1
+      successCondition: result.grounded == true && result.result == "success"
+      provider:
+        web:
+          method: POST
+          url: "{{args.canary-base-url}}/ask"
+          timeoutSeconds: 10
+          headers:
+            - key: Content-Type
+              value: application/json
+          jsonBody:
+            question: What does the observability baseline say about service indicators?
+            top_k: 3
+          jsonPath: "{$}"
+    - name: canary-workflow-completion
+      interval: 30s
+      count: 2
+      failureLimit: 1
+      successCondition: len(result) > 0 && result[0] >= 0.95
+      provider:
+        prometheus:
+          address: "{{args.prometheus-address}}"
+          query: |
+            sum(rate(ai_docqa_workflow_completions_total{job="ai-docqa-canary",result="success"}[2m]))
+            /
+            clamp_min(sum(rate(ai_docqa_workflow_completions_total{job="ai-docqa-canary"}[2m])), 1e-9)
+    - name: canary-insufficient-context
+      interval: 30s
+      count: 2
+      failureLimit: 1
+      successCondition: len(result) > 0 && result[0] <= 0.10
+      provider:
+        prometheus:
+          address: "{{args.prometheus-address}}"
+          query: |
+            sum(rate(ai_docqa_requests_total{job="ai-docqa-canary",endpoint="/ask",status="insufficient_context"}[2m]))
+            /
+            clamp_min(sum(rate(ai_docqa_requests_total{job="ai-docqa-canary",endpoint="/ask"}[2m])), 1e-9)
