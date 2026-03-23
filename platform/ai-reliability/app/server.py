@@ -18,7 +18,8 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 CORPUS_DIR = os.environ.get("AI_CORPUS_DIR", "/corpus")
 PORT = int(os.environ.get("PORT", "8080"))
 TOP_K = int(os.environ.get("TOP_K", "3"))
-SUPPORTED_MODES = {"extractive", "workflow", "structured"}
+MAX_TOP_K = 5
+SUPPORTED_MODES = {"extractive", "generative"}
 _default_mode_raw = os.environ.get("AI_DEFAULT_MODE", "extractive").strip().lower()
 if _default_mode_raw not in SUPPORTED_MODES:
     logging.warning(
@@ -150,6 +151,18 @@ class Handler(BaseHTTPRequestHandler):
     def _parsed_path(self):
         return urlparse(self.path)
 
+    def _parse_top_k(self, payload: dict) -> int:
+        raw_top_k = payload.get("top_k", TOP_K)
+        try:
+            top_k = int(raw_top_k)
+        except (TypeError, ValueError):
+            raise ValueError("top_k must be an integer") from None
+
+        if top_k <= 0:
+            raise ValueError("top_k must be greater than 0")
+
+        return min(top_k, MAX_TOP_K)
+
     def _send_json(self, payload: dict, status: int = HTTPStatus.OK) -> None:
         body = json.dumps(payload).encode("utf-8")
         self.send_response(status)
@@ -208,7 +221,7 @@ class Handler(BaseHTTPRequestHandler):
             question = payload.get("question", "")
             query_mode = parse_qs(parsed.query).get("mode", [None])[0]
             mode = payload.get("mode") or query_mode or DEFAULT_MODE
-            response = answer_question(question, CHUNKS, top_k=int(payload.get("top_k", TOP_K)), mode=mode)
+            response = answer_question(question, CHUNKS, top_k=self._parse_top_k(payload), mode=mode)
             latency_ms = round((time.perf_counter() - started) * 1000.0, 2)
             response["latency_ms"] = latency_ms
 
