@@ -62,7 +62,7 @@ spec:
         prometheus:
           address: "{{args.prometheus-address}}"
           query: |
-            avg_over_time(up{job="ai-docqa-canary"}[2m])
+            min_over_time(up{job="ai-docqa-canary"}[2m])
     - name: canary-insufficient-context-answer
       interval: 20s
       count: 2
