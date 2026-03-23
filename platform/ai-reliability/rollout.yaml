@@ -6,7 +6,7 @@ spec:
   replicas: 1
   analysis:
     successfulRunHistoryLimit: 2
-    unsuccessfulRunHistoryLimit: 0
+    unsuccessfulRunHistoryLimit: 1
   revisionHistoryLimit: 3
   selector:
     matchLabels:
