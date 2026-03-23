@@ -224,7 +224,16 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(body or b"{}")
             question = payload.get("question", "")
             query_mode = parse_qs(parsed.query).get("mode", [None])[0]
-            mode = payload.get("mode") or query_mode or DEFAULT_MODE
+            # Normalize and validate mode before using it for tracing
+            raw_mode = payload.get("mode") or query_mode
+            if isinstance(raw_mode, str):
+                normalized_mode = raw_mode.strip().lower()
+            else:
+                normalized_mode = None
+            if normalized_mode in SUPPORTED_MODES:
+                mode = normalized_mode
+            else:
+                mode = DEFAULT_MODE
             top_k = self._parse_top_k(payload)
             root_run = LANGSMITH.start_run(
                 name="ai_docqa_request",
