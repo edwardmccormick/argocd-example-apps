@@ -6,6 +6,22 @@ This drill intentionally breaks the guestbook readiness probe to exercise detect
 
 Validate that the platform surfaces a bad rollout quickly and that recovery happens by reverting Git rather than patching live state.
 
+## Steady-State Hypothesis
+
+Before the drill starts, the system should satisfy these conditions:
+
+- `helm-guestbook` is `Synced` and `Healthy` in Argo CD
+- the guestbook `Deployment` has one ready replica and no rollout in progress
+- the guestbook `Service` has at least one ready endpoint
+- `guestbook:availability:5m` is effectively `1`
+- the guestbook dashboard is showing stable request-rate and latency signals
+
+If those are not true before injection, the drill is not proving much. It is just piling a new fault onto an already unstable baseline.
+
+## Hypothesis
+
+If the readiness path is broken in Git and Argo CD applies the change automatically, Kubernetes should stall the rollout without sending traffic to the bad pod. The service should remain available through the old ready ReplicaSet, while rollout-health signals become degraded and the recovery path should be a Git revert rather than a live patch.
+
 ## Preconditions
 
 - `helm-guestbook` is healthy and synced in Argo CD
@@ -68,6 +84,15 @@ This happens because the Deployment uses the default `RollingUpdate` strategy. W
 5. Confirm `guestbook:availability:5m` returns to `1`
 
 Do not patch the live deployment directly unless Git reconciliation is broken and the exercise has shifted into incident mitigation mode.
+
+## Abort Conditions
+
+Stop the drill and recover immediately if any of these happen:
+
+- the old ready pod is terminated before a replacement is ready
+- service endpoints drop to zero ready backends
+- ingress or service behavior becomes fully unavailable to users
+- Argo CD stops reconciling and recovery through Git is no longer working
 
 ## Follow-Up Hardening
 

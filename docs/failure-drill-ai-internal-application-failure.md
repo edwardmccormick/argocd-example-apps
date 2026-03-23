@@ -13,6 +13,23 @@ This is the more interesting AI reliability case:
 - `/ask` still returns structured JSON
 - but the workflow quality has degraded and the service is no longer doing its intended job well
 
+## Steady-State Hypothesis
+
+Before the drill starts, the system should satisfy these conditions:
+
+- `ai-reliability` is `Synced` and `Healthy` in Argo CD
+- the AI service pod is ready and responding on `/healthz`, `/readyz`, and `/ask`
+- scheduled or manual baseline traffic is reaching the service
+- `Workflow Completion Ratio` is stable and near its normal baseline
+- `Structured Output Validity` is stable and near `100%`
+- `Insufficient Context Ratio` is low
+
+If those are not true before injection, the drill is mixing an existing reliability problem with the failure you are trying to study.
+
+## Hypothesis
+
+If key corpus documents are removed but the service process stays healthy, the system should continue returning valid HTTP and valid JSON while semantic quality degrades. The main visible change should be a rise in `insufficient_context` outcomes and a fall in workflow-completion signals, not a pod crash or transport outage.
+
 ## Preconditions
 
 - `ai-reliability` is healthy and synced in Argo CD
@@ -86,6 +103,15 @@ This is precisely the kind of failure mode that matters in AI systems. A healthy
 6. Confirm the AI workflow metrics recover in Grafana
 
 Do not patch the live deployment directly unless Git reconciliation is broken and the drill has shifted into incident mitigation mode.
+
+## Abort Conditions
+
+Stop the drill and recover immediately if any of these happen:
+
+- the AI pod fails readiness or liveness instead of staying operational
+- `/ask` starts returning transport errors rather than semantic degradation
+- the service becomes unavailable through ingress or service DNS
+- Argo CD or Prometheus is degraded badly enough that you cannot observe the drill
 
 ## Follow-Up Hardening
 

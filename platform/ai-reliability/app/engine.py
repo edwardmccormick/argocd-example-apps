@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from urllib import error, request
 
 
 STOPWORDS = {
@@ -60,6 +62,14 @@ class Chunk:
     chunk_id: str
     text: str
     tokens: set[str]
+
+
+@dataclass
+class GenerativeConfig:
+    provider: str
+    base_url: str
+    api_key: str
+    model: str
 
 
 def tokenize(text: str) -> list[str]:
@@ -202,34 +212,38 @@ def estimate_tokens(text: str) -> int:
 MIN_GROUNDED_SCORE = 1.1
 
 
-def answer_question(question: str, chunks: list[Chunk], top_k: int = 3) -> dict:
-    question = compact_whitespace(question)
-    if not question:
-        raise ValueError("question must not be empty")
+def normalize_result(grounded: bool, citations: list[dict]) -> str:
+    return "success" if grounded and bool(citations) else "insufficient_context"
 
-    hits = retrieve(question, chunks, top_k=top_k)
-    if not hits or hits[0]["score"] < MIN_GROUNDED_SCORE:
-        return {
-            "question": question,
-            "answer": "I could not ground an answer in the local reliability lab corpus.",
-            "grounded": False,
-            "mode": "extractive",
-            "result": "insufficient_context",
-            "citations": [],
-            "token_usage": {
-                "prompt_estimate": estimate_tokens(question),
-                "response_estimate": estimate_tokens("insufficient context"),
-            },
-        }
 
-    answer_parts = []
-    for hit in hits[:2]:
-        summary = first_sentences(hit["text"], limit=2)
-        if summary and summary not in answer_parts:
-            answer_parts.append(summary)
+def format_response(question: str, answer: str, grounded: bool, mode: str, citations: list[dict], token_usage: dict) -> dict:
+    return {
+        "question": question,
+        "answer": answer,
+        "grounded": grounded,
+        "mode": mode,
+        "result": normalize_result(grounded, citations),
+        "citations": citations,
+        "token_usage": token_usage,
+    }
 
-    answer = " ".join(answer_parts)[:700]
-    citations = [
+
+def insufficient_context_response(question: str, mode: str) -> dict:
+    return format_response(
+        question=question,
+        answer="I could not ground an answer in the local reliability lab corpus.",
+        grounded=False,
+        mode=mode,
+        citations=[],
+        token_usage={
+            "prompt_estimate": estimate_tokens(question),
+            "response_estimate": estimate_tokens("insufficient context"),
+        },
+    )
+
+
+def citation_payload(hits: list[dict]) -> list[dict]:
+    return [
         {
             "document": hit["document"],
             "title": hit["title"],
@@ -241,21 +255,173 @@ def answer_question(question: str, chunks: list[Chunk], top_k: int = 3) -> dict:
         for hit in hits
     ]
 
+
+def generative_config_from_env() -> GenerativeConfig:
+    provider = os.environ.get("AI_GENERATIVE_PROVIDER", "openai").strip().lower()
+    base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").strip().rstrip("/")
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    model = os.environ.get("OPENAI_MODEL", "").strip()
+
+    if not api_key:
+        raise ValueError("generative mode requested but OPENAI_API_KEY is not configured")
+    if not model:
+        raise ValueError("generative mode requested but OPENAI_MODEL is not configured")
+    if provider != "openai":
+        raise ValueError(f"unsupported generative provider: {provider}")
+
+    return GenerativeConfig(provider=provider, base_url=base_url, api_key=api_key, model=model)
+
+
+def extract_json_object(payload: str) -> dict:
+    payload = payload.strip()
+    if not payload:
+        raise ValueError("generative provider returned an empty response")
+    try:
+        return json.loads(payload)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", payload, re.DOTALL)
+        if not match:
+            raise ValueError("generative provider returned non-JSON content") from None
+        return json.loads(match.group(0))
+
+
+def call_openai_chat(question: str, hits: list[dict], config: GenerativeConfig) -> dict:
+    allowed_chunk_ids = [hit["chunk_id"] for hit in hits]
+    context_lines = []
+    for hit in hits:
+        context_lines.append(
+            "\n".join(
+                [
+                    f"chunk_id: {hit['chunk_id']}",
+                    f"document: {hit['document']}",
+                    f"heading: {hit['heading']}",
+                    f"text: {hit['text']}",
+                ]
+            )
+        )
+
+    body = {
+        "model": config.model,
+        "response_format": {"type": "json_object"},
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You answer questions only from the provided corpus chunks. "
+                    "Return only JSON with keys: answer, grounded, cited_chunk_ids. "
+                    "Set grounded to true only if the answer is supported by the supplied chunks. "
+                    "cited_chunk_ids must contain only chunk_id values taken from the provided context. "
+                    "If the context is insufficient, answer briefly, set grounded to false, and return an empty cited_chunk_ids array."
+                ),
+            },
+            {
+                "role": "user",
+                "content": "\n\n".join(
+                    [
+                        f"Question: {question}",
+                        f"Allowed chunk ids: {', '.join(allowed_chunk_ids)}",
+                        "Context:",
+                        "\n\n".join(context_lines),
+                    ]
+                ),
+            },
+        ],
+    }
+
+    req = request.Request(
+        url=f"{config.base_url}/chat/completions",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {config.api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with request.urlopen(req, timeout=30) as response:
+            raw = json.loads(response.read().decode("utf-8"))
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise ValueError(f"generative provider request failed: {exc.code} {detail}") from None
+    except error.URLError as exc:
+        raise ValueError(f"generative provider request failed: {exc.reason}") from None
+
+    choices = raw.get("choices", [])
+    if not choices:
+        raise ValueError("generative provider returned no choices")
+
+    message = choices[0].get("message", {})
+    content = message.get("content", "")
+    parsed = extract_json_object(content)
+
+    answer = compact_whitespace(str(parsed.get("answer", "")))
+    grounded = bool(parsed.get("grounded", False))
+    cited_chunk_ids = [str(item) for item in parsed.get("cited_chunk_ids", []) if str(item) in allowed_chunk_ids]
+    usage = raw.get("usage", {})
+
     return {
-        "question": question,
         "answer": answer,
-        "grounded": True,
-        "mode": "extractive",
-        "result": "success",
-        "citations": citations,
+        "grounded": grounded,
+        "cited_chunk_ids": cited_chunk_ids,
         "token_usage": {
-            "prompt_estimate": estimate_tokens(question),
-            "response_estimate": estimate_tokens(answer),
+            "prompt_estimate": usage.get("prompt_tokens", estimate_tokens(question)),
+            "response_estimate": usage.get("completion_tokens", estimate_tokens(answer or "insufficient context")),
         },
     }
 
 
-def run_eval(corpus_dir: str, eval_file: str) -> dict:
+def answer_question(question: str, chunks: list[Chunk], top_k: int = 3, mode: str = "extractive") -> dict:
+    question = compact_whitespace(question)
+    if not question:
+        raise ValueError("question must not be empty")
+
+    mode = (mode or "extractive").strip().lower()
+    if mode not in {"extractive", "generative"}:
+        raise ValueError(f"unsupported mode: {mode}")
+
+    hits = retrieve(question, chunks, top_k=top_k)
+    if not hits or hits[0]["score"] < MIN_GROUNDED_SCORE:
+        return insufficient_context_response(question, mode=mode)
+
+    if mode == "generative":
+        config = generative_config_from_env()
+        generated = call_openai_chat(question, hits, config)
+        citations_by_id = {hit["chunk_id"]: hit for hit in hits}
+        citations = citation_payload([citations_by_id[chunk_id] for chunk_id in generated["cited_chunk_ids"]])
+        grounded = generated["grounded"] and bool(citations)
+        return format_response(
+            question=question,
+            answer=generated["answer"] or "I could not ground an answer in the local reliability lab corpus.",
+            grounded=grounded,
+            mode="generative",
+            citations=citations if grounded else [],
+            token_usage=generated["token_usage"],
+        )
+
+    answer_parts = []
+    for hit in hits[:2]:
+        summary = first_sentences(hit["text"], limit=2)
+        if summary and summary not in answer_parts:
+            answer_parts.append(summary)
+
+    answer = " ".join(answer_parts)[:700]
+    citations = citation_payload(hits)
+
+    return format_response(
+        question=question,
+        answer=answer,
+        grounded=True,
+        mode="extractive",
+        citations=citations,
+        token_usage={
+            "prompt_estimate": estimate_tokens(question),
+            "response_estimate": estimate_tokens(answer),
+        },
+    )
+
+
+def run_eval(corpus_dir: str, eval_file: str, mode: str = "extractive") -> dict:
     chunks = load_corpus(corpus_dir)
     cases = json.loads(Path(eval_file).read_text(encoding="utf-8"))
     passed = 0
@@ -268,7 +434,7 @@ def run_eval(corpus_dir: str, eval_file: str) -> dict:
         category_summary["total"] += 1
 
         try:
-            response = answer_question(case["question"], chunks, top_k=case.get("top_k", 3))
+            response = answer_question(case["question"], chunks, top_k=case.get("top_k", 3), mode=case.get("mode", mode))
             expected_docs = set(case.get("expected_documents", []))
             actual_docs = {citation["document"] for citation in response["citations"]}
             expected_keywords = [keyword.lower() for keyword in case.get("expected_keywords", [])]
