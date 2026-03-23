@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: ai-reliability
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   project: local-lab
   source:
@@ -13,17 +15,28 @@ spec:
     server: https://kubernetes.default.svc
     namespace: ai-lab
   ignoreDifferences:
-    - group: apps
-      kind: Deployment
+    - group: argoproj.io
+      kind: Rollout
       name: ai-reliability
       jsonPointers:
         - /spec/replicas
+    - group: ""
+      kind: Service
+      name: ai-reliability-stable
+      jsonPointers:
+        - /spec/selector
+    - group: ""
+      kind: Service
+      name: ai-reliability-canary
+      jsonPointers:
+        - /spec/selector
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - RespectIgnoreDifferences=true
+      - SkipDryRunOnMissingResource=true
   info:
     - name: purpose
       value: Grounded document-QA workload for AI reliability, replay, and observability exercises.

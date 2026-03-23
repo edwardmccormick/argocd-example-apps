@@ -9,3 +9,27 @@ spec:
     - name: http
       port: 8080
       targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-reliability-stable
+spec:
+  selector:
+    app: ai-reliability
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-reliability-canary
+spec:
+  selector:
+    app: ai-reliability
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

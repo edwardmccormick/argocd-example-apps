@@ -14,6 +14,11 @@ configMapGenerator:
   - name: grafana-dashboards-provider
     files:
       - dashboards.yaml=config/grafana/dashboards.yaml
+  - name: grafana-dashboards
+    files:
+      - guestbook-overview.json=config/grafana/guestbook-overview.json
+      - ai-docqa-overview.json=config/grafana/ai-docqa-overview.json
+      - argocd-control-plane.json=config/grafana/argocd-control-plane.json
 
 resources:
   - namespace.yaml
