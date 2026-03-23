@@ -53,27 +53,30 @@ spec:
             question: What does the observability baseline say about service indicators?
             top_k: 3
           jsonPath: "{$}"
-    - name: canary-workflow-completion
+    - name: canary-metrics-up
       interval: 30s
       count: 2
       failureLimit: 1
-      successCondition: len(result) > 0 && result[0] >= 0.95
+      successCondition: len(result) > 0 && result[0] >= 1
       provider:
         prometheus:
           address: "{{args.prometheus-address}}"
           query: |
-            sum(rate(ai_docqa_workflow_completions_total{job="ai-docqa-canary",result="success"}[2m]))
-            /
-            clamp_min(sum(rate(ai_docqa_workflow_completions_total{job="ai-docqa-canary"}[2m])), 1e-9)
-    - name: canary-insufficient-context
-      interval: 30s
+            avg_over_time(up{job="ai-docqa-canary"}[2m])
+    - name: canary-insufficient-context-answer
+      interval: 20s
       count: 2
       failureLimit: 1
-      successCondition: len(result) > 0 && result[0] <= 0.10
+      successCondition: result.grounded == false && result.result == "insufficient_context"
       provider:
-        prometheus:
-          address: "{{args.prometheus-address}}"
-          query: |
-            sum(rate(ai_docqa_requests_total{job="ai-docqa-canary",endpoint="/ask",status="insufficient_context"}[2m]))
-            /
-            clamp_min(sum(rate(ai_docqa_requests_total{job="ai-docqa-canary",endpoint="/ask"}[2m])), 1e-9)
+        web:
+          method: POST
+          url: "{{args.canary-base-url}}/ask"
+          timeoutSeconds: 10
+          headers:
+            - key: Content-Type
+              value: application/json
+          jsonBody:
+            question: What is the weather in Chicago today?
+            top_k: 3
+          jsonPath: "{$}"

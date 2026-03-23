@@ -19,6 +19,13 @@ spec:
       kind: CustomResourceDefinition
       jqPathExpressions:
         - .spec.conversion.webhook.clientConfig.caBundle
+        - .metadata.annotations."helm.sh/resource-policy"
+        - .metadata.annotations."meta.helm.sh/release-name"
+        - .metadata.annotations."meta.helm.sh/release-namespace"
+        - .metadata.labels."app.kubernetes.io/managed-by"
+        - .spec.versions[].schema.openAPIV3Schema
+        - .spec.versions[].subresources
+        - .spec.versions[].additionalPrinterColumns
         - .status
   syncPolicy:
     automated:

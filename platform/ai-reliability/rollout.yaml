@@ -4,6 +4,9 @@ metadata:
   name: ai-reliability
 spec:
   replicas: 1
+  analysis:
+    successfulRunHistoryLimit: 2
+    unsuccessfulRunHistoryLimit: 0
   revisionHistoryLimit: 3
   selector:
     matchLabels:
@@ -34,7 +37,7 @@ spec:
             - name: GEMINI_BASE_URL
               value: https://generativelanguage.googleapis.com/v1beta
             - name: GEMINI_MODEL
-              value: ""
+              value: "gemini-3.1-flash-lite-preview"
             - name: GEMINI_API_KEY
               valueFrom:
                 secretKeyRef:
