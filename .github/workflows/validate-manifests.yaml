@@ -205,7 +205,17 @@ jobs:
 
       - name: Wait for AI reliability rollout
         run: |
-          kubectl wait --for=condition=ready pod -n ai-lab -l app=ai-reliability --timeout=180s
+          kubectl wait \
+            --for=jsonpath='{.status.readyReplicas}'=1 \
+            rollout/ai-reliability \
+            -n ai-lab \
+            --timeout=180s
+          kubectl wait \
+            --for=condition=ready \
+            pod \
+            -n ai-lab \
+            -l app=ai-reliability \
+            --timeout=180s
 
       - name: AI smoke test diagnostics
         if: failure()
@@ -214,11 +224,13 @@ jobs:
           echo "---"
           kubectl get rollouts.argoproj.io -n ai-lab ai-reliability -o yaml || true
           echo "---"
-          kubectl get pods -n ai-lab -l app=ai-reliability -o wide
+          kubectl get rs -n ai-lab -o wide || true
           echo "---"
-          kubectl describe pods -n ai-lab -l app=ai-reliability
+          kubectl get analysisruns.argoproj.io -n ai-lab -o yaml || true
           echo "---"
-          kubectl logs -n ai-lab deployment/ai-reliability --tail=100 || true
+          kubectl get pods -n ai-lab -l app=ai-reliability -o wide || true
+          echo "---"
+          kubectl describe pods -n ai-lab -l app=ai-reliability || true
           echo "---"
           for pod in $(kubectl get pods -n ai-lab -l app=ai-reliability -o jsonpath='{.items[*].metadata.name}'); do
             echo "### logs for ${pod}"
