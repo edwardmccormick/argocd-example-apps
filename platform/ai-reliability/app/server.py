@@ -18,7 +18,17 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 CORPUS_DIR = os.environ.get("AI_CORPUS_DIR", "/corpus")
 PORT = int(os.environ.get("PORT", "8080"))
 TOP_K = int(os.environ.get("TOP_K", "3"))
-DEFAULT_MODE = os.environ.get("AI_DEFAULT_MODE", "extractive").strip().lower()
+SUPPORTED_MODES = {"extractive", "workflow", "structured"}
+_default_mode_raw = os.environ.get("AI_DEFAULT_MODE", "extractive").strip().lower()
+if _default_mode_raw not in SUPPORTED_MODES:
+    logging.warning(
+        "Unsupported AI_DEFAULT_MODE '%s'; falling back to 'extractive'. Supported modes: %s",
+        _default_mode_raw or "<empty>",
+        ", ".join(sorted(SUPPORTED_MODES)),
+    )
+    DEFAULT_MODE = "extractive"
+else:
+    DEFAULT_MODE = _default_mode_raw
 
 
 class Metrics:
