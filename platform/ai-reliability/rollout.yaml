@@ -30,16 +30,16 @@ spec:
             - name: AI_DEFAULT_MODE
               value: extractive
             - name: AI_GENERATIVE_PROVIDER
-              value: openai
-            - name: OPENAI_BASE_URL
-              value: https://api.openai.com/v1
-            - name: OPENAI_MODEL
+              value: gemini
+            - name: GEMINI_BASE_URL
+              value: https://generativelanguage.googleapis.com/v1beta
+            - name: GEMINI_MODEL
               value: ""
-            - name: OPENAI_API_KEY
+            - name: GEMINI_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: ai-reliability-llm
-                  key: openai-api-key
+                  key: gemini-api-key
                   optional: true
             - name: PORT
               value: "8080"

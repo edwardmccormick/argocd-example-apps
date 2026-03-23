@@ -192,7 +192,7 @@
     "category": "adversarial_robustness",
     "mode": "generative",
     "question": "What does the validation workflow enforce before merge?",
-    "expected_error_contains": "OPENAI_API_KEY is not configured"
+    "expected_error_contains": "GEMINI_API_KEY is not configured"
   },
   {
     "id": "adversarial_empty_question",

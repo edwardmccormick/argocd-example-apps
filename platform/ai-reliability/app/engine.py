@@ -257,16 +257,16 @@ def citation_payload(hits: list[dict]) -> list[dict]:
 
 
 def generative_config_from_env() -> GenerativeConfig:
-    provider = os.environ.get("AI_GENERATIVE_PROVIDER", "openai").strip().lower()
-    base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").strip().rstrip("/")
-    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
-    model = os.environ.get("OPENAI_MODEL", "").strip()
+    provider = os.environ.get("AI_GENERATIVE_PROVIDER", "gemini").strip().lower()
+    base_url = os.environ.get("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta").strip().rstrip("/")
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    model = os.environ.get("GEMINI_MODEL", "").strip()
 
     if not api_key:
-        raise ValueError("generative mode requested but OPENAI_API_KEY is not configured")
+        raise ValueError("generative mode requested but GEMINI_API_KEY is not configured")
     if not model:
-        raise ValueError("generative mode requested but OPENAI_MODEL is not configured")
-    if provider != "openai":
+        raise ValueError("generative mode requested but GEMINI_MODEL is not configured")
+    if provider != "gemini":
         raise ValueError(f"unsupported generative provider: {provider}")
 
     return GenerativeConfig(provider=provider, base_url=base_url, api_key=api_key, model=model)
@@ -285,8 +285,9 @@ def extract_json_object(payload: str) -> dict:
         return json.loads(match.group(0))
 
 
-def call_openai_chat(question: str, hits: list[dict], config: GenerativeConfig) -> dict:
+def call_gemini_generate_content(question: str, hits: list[dict], config: GenerativeConfig) -> dict:
     allowed_chunk_ids = [hit["chunk_id"] for hit in hits]
+    allowed_chunk_id_set = set(allowed_chunk_ids)
     context_lines = []
     for hit in hits:
         context_lines.append(
@@ -301,38 +302,46 @@ def call_openai_chat(question: str, hits: list[dict], config: GenerativeConfig) 
         )
 
     body = {
-        "model": config.model,
-        "response_format": {"type": "json_object"},
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You answer questions only from the provided corpus chunks. "
-                    "Return only JSON with keys: answer, grounded, cited_chunk_ids. "
-                    "Set grounded to true only if the answer is supported by the supplied chunks. "
-                    "cited_chunk_ids must contain only chunk_id values taken from the provided context. "
-                    "If the context is insufficient, answer briefly, set grounded to false, and return an empty cited_chunk_ids array."
-                ),
-            },
+        "systemInstruction": {
+            "parts": [
+                {
+                    "text": (
+                        "You answer questions only from the provided corpus chunks. "
+                        "Return only JSON with keys: answer, grounded, cited_chunk_ids. "
+                        "Set grounded to true only if the answer is supported by the supplied chunks. "
+                        "cited_chunk_ids must contain only chunk_id values taken from the provided context. "
+                        "If the context is insufficient, answer briefly, set grounded to false, and return an empty cited_chunk_ids array."
+                    )
+                }
+            ]
+        },
+        "contents": [
             {
                 "role": "user",
-                "content": "\n\n".join(
-                    [
-                        f"Question: {question}",
-                        f"Allowed chunk ids: {', '.join(allowed_chunk_ids)}",
-                        "Context:",
-                        "\n\n".join(context_lines),
-                    ]
-                ),
-            },
+                "parts": [
+                    {
+                        "text": "\n\n".join(
+                            [
+                                f"Question: {question}",
+                                f"Allowed chunk ids: {', '.join(allowed_chunk_ids)}",
+                                "Context:",
+                                "\n\n".join(context_lines),
+                            ]
+                        )
+                    }
+                ],
+            }
         ],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+        },
     }
 
     req = request.Request(
-        url=f"{config.base_url}/chat/completions",
+        url=f"{config.base_url}/models/{config.model}:generateContent",
         data=json.dumps(body).encode("utf-8"),
         headers={
-            "Authorization": f"Bearer {config.api_key}",
+            "x-goog-api-key": config.api_key,
             "Content-Type": "application/json",
         },
         method="POST",
@@ -347,26 +356,26 @@ def call_openai_chat(question: str, hits: list[dict], config: GenerativeConfig) 
     except error.URLError as exc:
         raise ValueError(f"generative provider request failed: {exc.reason}") from None
 
-    choices = raw.get("choices", [])
-    if not choices:
-        raise ValueError("generative provider returned no choices")
+    candidates = raw.get("candidates", [])
+    if not candidates:
+        raise ValueError("generative provider returned no candidates")
 
-    message = choices[0].get("message", {})
-    content = message.get("content", "")
+    parts = candidates[0].get("content", {}).get("parts", [])
+    content = "".join(str(part.get("text", "")) for part in parts)
     parsed = extract_json_object(content)
 
     answer = compact_whitespace(str(parsed.get("answer", "")))
     grounded = bool(parsed.get("grounded", False))
-    cited_chunk_ids = [str(item) for item in parsed.get("cited_chunk_ids", []) if str(item) in allowed_chunk_ids]
-    usage = raw.get("usage", {})
+    cited_chunk_ids = [str(item) for item in parsed.get("cited_chunk_ids", []) if str(item) in allowed_chunk_id_set]
+    usage = raw.get("usageMetadata", {})
 
     return {
         "answer": answer,
         "grounded": grounded,
         "cited_chunk_ids": cited_chunk_ids,
         "token_usage": {
-            "prompt_estimate": usage.get("prompt_tokens", estimate_tokens(question)),
-            "response_estimate": usage.get("completion_tokens", estimate_tokens(answer or "insufficient context")),
+            "prompt_estimate": usage.get("promptTokenCount", estimate_tokens(question)),
+            "response_estimate": usage.get("candidatesTokenCount", estimate_tokens(answer or "insufficient context")),
         },
     }
 
@@ -386,7 +395,7 @@ def answer_question(question: str, chunks: list[Chunk], top_k: int = 3, mode: st
 
     if mode == "generative":
         config = generative_config_from_env()
-        generated = call_openai_chat(question, hits, config)
+        generated = call_gemini_generate_content(question, hits, config)
         citations_by_id = {hit["chunk_id"]: hit for hit in hits}
         citations = citation_payload([citations_by_id[chunk_id] for chunk_id in generated["cited_chunk_ids"]])
         grounded = generated["grounded"] and bool(citations)
