@@ -188,6 +188,13 @@
     "min_citation_count": 0
   },
   {
+    "id": "generative_mode_not_configured",
+    "category": "adversarial_robustness",
+    "mode": "generative",
+    "question": "What does the validation workflow enforce before merge?",
+    "expected_error_contains": "OPENAI_API_KEY is not configured"
+  },
+  {
     "id": "adversarial_empty_question",
     "category": "adversarial_robustness",
     "question": "",

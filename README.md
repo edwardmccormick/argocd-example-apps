@@ -75,6 +75,25 @@ curl -H 'Host: ai-lab.localhost' \
   http://localhost:8080/ask
 ```
 
+Optional generative mode is also available. The service keeps extractive mode as the default and CI-safe path, but can call an OpenAI-compatible API when a key is provided.
+
+Create the secret from [`platform/ai-reliability/llm-secret.example.yaml`](./platform/ai-reliability/llm-secret.example.yaml) or directly:
+
+```bash
+kubectl create secret generic ai-reliability-llm \
+  -n ai-lab \
+  --from-literal=openai-api-key='replace-me'
+```
+
+Then set `OPENAI_MODEL` in [`platform/ai-reliability/rollout.yaml`](./platform/ai-reliability/rollout.yaml) to the model you want, sync `ai-reliability`, and call:
+
+```bash
+curl -H 'Host: ai-lab.localhost' \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"What does the validation workflow enforce before merge?","mode":"generative"}' \
+  http://localhost:8080/ask
+```
+
 ## Implemented Features
 
 ### GitOps Delivery
@@ -92,6 +111,7 @@ curl -H 'Host: ai-lab.localhost' \
   - structured JSON responses
   - replayable eval cases
   - Prometheus-friendly latency and workflow metrics
+  - an optional model-backed `generative` mode behind the same response schema
 
 ### Observability
 

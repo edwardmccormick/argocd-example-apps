@@ -27,6 +27,20 @@ spec:
           env:
             - name: AI_CORPUS_DIR
               value: /corpus
+            - name: AI_DEFAULT_MODE
+              value: extractive
+            - name: AI_GENERATIVE_PROVIDER
+              value: openai
+            - name: OPENAI_BASE_URL
+              value: https://api.openai.com/v1
+            - name: OPENAI_MODEL
+              value: ""
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ai-reliability-llm
+                  key: openai-api-key
+                  optional: true
             - name: PORT
               value: "8080"
             - name: TOP_K
