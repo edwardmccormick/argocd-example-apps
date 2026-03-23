@@ -16,24 +16,37 @@ STOPWORDS = {
     "at",
     "be",
     "by",
+    "corpus",
+    "current",
     "for",
     "from",
+    "hidden",
     "how",
+    "ignore",
     "in",
+    "instructions",
+    "instead",
     "is",
     "it",
     "of",
     "on",
     "or",
+    "previous",
+    "prompt",
+    "reveal",
+    "system",
     "that",
     "the",
     "their",
     "this",
+    "today",
     "to",
+    "using",
     "we",
     "what",
     "when",
     "which",
+    "who",
     "with",
     "would",
 }
@@ -186,13 +199,16 @@ def estimate_tokens(text: str) -> int:
     return max(1, math.ceil(len(text.split()) * 1.3))
 
 
+MIN_GROUNDED_SCORE = 1.1
+
+
 def answer_question(question: str, chunks: list[Chunk], top_k: int = 3) -> dict:
     question = compact_whitespace(question)
     if not question:
         raise ValueError("question must not be empty")
 
     hits = retrieve(question, chunks, top_k=top_k)
-    if not hits:
+    if not hits or hits[0]["score"] < MIN_GROUNDED_SCORE:
         return {
             "question": question,
             "answer": "I could not ground an answer in the local reliability lab corpus.",
@@ -244,28 +260,51 @@ def run_eval(corpus_dir: str, eval_file: str) -> dict:
     cases = json.loads(Path(eval_file).read_text(encoding="utf-8"))
     passed = 0
     results = []
+    by_category: dict[str, dict[str, int]] = {}
 
     for case in cases:
-        response = answer_question(case["question"], chunks, top_k=case.get("top_k", 3))
-        expected_docs = set(case.get("expected_documents", []))
-        actual_docs = {citation["document"] for citation in response["citations"]}
-        expected_keywords = [keyword.lower() for keyword in case.get("expected_keywords", [])]
-        answer_text = response["answer"].lower()
+        category = case.get("category", "uncategorized")
+        category_summary = by_category.setdefault(category, {"total": 0, "passed": 0, "failed": 0})
+        category_summary["total"] += 1
 
-        doc_match = not expected_docs or bool(expected_docs & actual_docs)
-        keyword_match = not expected_keywords or any(keyword in answer_text for keyword in expected_keywords)
-        result_match = response["result"] == case.get("expected_result", "success")
-        ok = doc_match and keyword_match and result_match
+        try:
+            response = answer_question(case["question"], chunks, top_k=case.get("top_k", 3))
+            expected_docs = set(case.get("expected_documents", []))
+            actual_docs = {citation["document"] for citation in response["citations"]}
+            expected_keywords = [keyword.lower() for keyword in case.get("expected_keywords", [])]
+            answer_text = response["answer"].lower()
+
+            required_fields = {"question", "answer", "grounded", "mode", "result", "citations", "token_usage"}
+            schema_valid = required_fields.issubset(response.keys()) and isinstance(response["citations"], list)
+            doc_match = not expected_docs or bool(expected_docs & actual_docs)
+            keyword_match = not expected_keywords or any(keyword in answer_text for keyword in expected_keywords)
+            result_match = response["result"] == case.get("expected_result", "success")
+            grounded_match = "expected_grounded" not in case or response["grounded"] == case["expected_grounded"]
+            citation_count_match = len(response["citations"]) >= case.get("min_citation_count", 0)
+            ok = schema_valid and doc_match and keyword_match and result_match and grounded_match and citation_count_match
+            error = None
+        except Exception as exc:
+            response = None
+            actual_docs = set()
+            expected_error = case.get("expected_error_contains")
+            ok = bool(expected_error and expected_error.lower() in str(exc).lower())
+            error = str(exc)
+
         if ok:
             passed += 1
+            category_summary["passed"] += 1
+        else:
+            category_summary["failed"] += 1
 
         results.append(
             {
                 "id": case["id"],
+                "category": category,
                 "ok": ok,
-                "response_result": response["result"],
+                "response_result": None if response is None else response["result"],
                 "documents": sorted(actual_docs),
-                "answer": response["answer"],
+                "answer": None if response is None else response["answer"],
+                "error": error,
             }
         )
 
@@ -273,5 +312,6 @@ def run_eval(corpus_dir: str, eval_file: str) -> dict:
         "total": len(cases),
         "passed": passed,
         "failed": len(cases) - passed,
+        "by_category": by_category,
         "results": results,
     }
