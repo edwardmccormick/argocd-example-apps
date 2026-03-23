@@ -260,15 +260,26 @@ jobs:
             --command -- \
             sh -c '
               set -eu
-              curl -fsS http://ai-reliability.ai-lab.svc.cluster.local:8080/healthz
+              curl -fsS http://ai-reliability-stable.ai-lab.svc.cluster.local:8080/healthz
               echo
-              curl -fsS http://ai-reliability.ai-lab.svc.cluster.local:8080/readyz
+              curl -fsS http://ai-reliability-stable.ai-lab.svc.cluster.local:8080/readyz
               echo
               response="$(curl -fsS \
                 -H "Content-Type: application/json" \
                 -d '"'"'{"question":"What operational value did the Trivy and smoke-test notes describe?"}'"'"' \
-                http://ai-reliability.ai-lab.svc.cluster.local:8080/ask)"
+                http://ai-reliability-stable.ai-lab.svc.cluster.local:8080/ask)"
               echo "$response"
               echo "$response" | grep -q "\"result\":"
               echo "$response" | grep -q "\"citations\":"
             '
+
+      - name: AI smoke service diagnostics
+        if: failure()
+        run: |
+          kubectl get svc,endpoints,endpointslice -n ai-lab || true
+          echo "---"
+          kubectl describe svc ai-reliability -n ai-lab || true
+          echo "---"
+          kubectl describe svc ai-reliability-stable -n ai-lab || true
+          echo "---"
+          kubectl describe svc ai-reliability-canary -n ai-lab || true
