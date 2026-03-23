@@ -23,6 +23,7 @@ spec:
         - .metadata.annotations."meta.helm.sh/release-name"
         - .metadata.annotations."meta.helm.sh/release-namespace"
         - .metadata.labels."app.kubernetes.io/managed-by"
+        - .spec.preserveUnknownFields
         - .spec.versions[].schema.openAPIV3Schema
         - .spec.versions[].subresources
         - .spec.versions[].additionalPrinterColumns

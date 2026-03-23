@@ -94,6 +94,17 @@ curl -H 'Host: ai-lab.localhost' \
   http://localhost:8080/ask
 ```
 
+An opt-in generative eval pack also lives in [`platform/ai-reliability/app/generative_eval_cases.json`](./platform/ai-reliability/app/generative_eval_cases.json). It is intentionally not part of CI because it needs a live Gemini key and the outputs are probabilistic rather than exact-string deterministic.
+
+Run it locally with:
+
+```bash
+python3 ./platform/ai-reliability/app/run_eval.py \
+  --corpus-dir ./platform/ai-reliability/corpus \
+  --eval-file ./platform/ai-reliability/app/generative_eval_cases.json \
+  --mode generative
+```
+
 ## Implemented Features
 
 ### GitOps Delivery
@@ -118,6 +129,7 @@ curl -H 'Host: ai-lab.localhost' \
 - Prometheus, Grafana, Blackbox Exporter, and OpenTelemetry Collector in [`platform/observability`](./platform/observability)
 - guestbook SLIs for availability and latency
 - AI service SLIs for workflow completion and structured-output validity
+- mode-split AI visibility for extractive versus generative behavior
 - Argo CD control-plane metrics and dashboarding
 - scheduled `k6` traffic for both guestbook and the AI service
 
