@@ -35,7 +35,7 @@ spec:
             - name: AI_GENERATIVE_PROVIDER
               value: gemini
             - name: LANGSMITH_TRACING
-              value: "false"
+              value: "true"
             - name: LANGSMITH_ENDPOINT
               value: https://api.smith.langchain.com
             - name: LANGSMITH_PROJECT

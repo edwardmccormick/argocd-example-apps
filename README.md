@@ -82,7 +82,19 @@ Create the secret from [`platform/ai-reliability/llm-secret.example.yaml`](./pla
 ```bash
 kubectl create secret generic ai-reliability-llm \
   -n ai-lab \
-  --from-literal=gemini-api-key='replace-me'
+  --from-literal=gemini-api-key='replace-me' \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+If you also want LangSmith tracing, create or update that same secret with the LangSmith values as well:
+
+```bash
+kubectl create secret generic ai-reliability-llm \
+  -n ai-lab \
+  --from-literal=gemini-api-key='replace-me' \
+  --from-literal=langsmith-api-key='replace-me' \
+  --from-literal=langsmith-workspace-id='optional-workspace-id' \
+  --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 Then set `GEMINI_MODEL` in [`platform/ai-reliability/rollout.yaml`](./platform/ai-reliability/rollout.yaml) to the model you want, sync `ai-reliability`, and call:
@@ -107,7 +119,7 @@ python3 ./platform/ai-reliability/app/run_eval.py \
 
 Optional LangSmith tracing is also wired into the AI service. It is off by default and remains completely optional so the deterministic local path stays secret-free.
 
-To enable it, add `langsmith-api-key` to the same secret and set `LANGSMITH_TRACING` to `"true"` in [`platform/ai-reliability/rollout.yaml`](./platform/ai-reliability/rollout.yaml). Optionally add `langsmith-workspace-id` if your account requires it.
+To enable it, populate `langsmith-api-key` in the same `ai-reliability-llm` Kubernetes secret and set `LANGSMITH_TRACING` to `"true"` in [`platform/ai-reliability/rollout.yaml`](./platform/ai-reliability/rollout.yaml). Optionally add `langsmith-workspace-id` if your account requires it.
 
 This implementation emits:
 
