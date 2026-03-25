@@ -67,7 +67,6 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: |
             argocd-example-apps
-          permission-contents: write
 
       - name: Checkout
         uses: actions/checkout@v4
