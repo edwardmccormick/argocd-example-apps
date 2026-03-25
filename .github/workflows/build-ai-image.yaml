@@ -25,11 +25,35 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Resolve GitHub App configuration
+        id: app-config
+        env:
+          APP_ID_VAR: ${{ vars.AI_IMAGE_PINNER_APP_ID }}
+          APP_ID_SECRET: ${{ secrets.AI_IMAGE_PINNER_APP_ID }}
+          APP_KEY: ${{ secrets.AI_IMAGE_PINNER_PRIVATE_KEY }}
+        run: |
+          app_id="${APP_ID_VAR:-}"
+          if [ -z "$app_id" ]; then
+            app_id="${APP_ID_SECRET:-}"
+          fi
+
+          if [ -z "$app_id" ]; then
+            echo "::error::Missing GitHub App ID. Set repository variable AI_IMAGE_PINNER_APP_ID (preferred) or repository secret AI_IMAGE_PINNER_APP_ID to the numeric GitHub App ID."
+            exit 1
+          fi
+
+          if [ -z "${APP_KEY:-}" ]; then
+            echo "::error::Missing repository secret AI_IMAGE_PINNER_PRIVATE_KEY."
+            exit 1
+          fi
+
+          echo "app_id=$app_id" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ vars.AI_IMAGE_PINNER_APP_ID }}
+          app-id: ${{ steps.app-config.outputs.app_id }}
           private-key: ${{ secrets.AI_IMAGE_PINNER_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: |

@@ -75,6 +75,8 @@ This lab keeps that app intentionally narrow: it only needs write access to [`pl
 
 That narrow scope is a deliberate tradeoff. It is safer for the current repo shape, but future refactors need to preserve or consciously expand those paths if the image-pin workflow ever needs to touch different files.
 
+For the helper action in [`.github/workflows/build-ai-image.yaml`](./.github/workflows/build-ai-image.yaml), `AI_IMAGE_PINNER_APP_ID` should be the numeric GitHub App ID, not the client ID.
+
 ### Access
 
 Traefik routes everything through `localhost:8080` by host header:
