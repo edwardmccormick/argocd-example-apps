@@ -21,108 +21,103 @@ spec:
           type: RuntimeDefault
         fsGroup: 10001
       containers:
-        - name: ai-reliability
-          image: python:3.12-slim
-          imagePullPolicy: IfNotPresent
-          command:
-            - python
-            - /app/server.py
-          env:
-            - name: AI_CORPUS_DIR
-              value: /corpus
-            - name: AI_DEFAULT_MODE
-              value: extractive
-            - name: AI_GENERATIVE_PROVIDER
-              value: gemini
-            - name: LANGSMITH_TRACING
-              value: "true"
-            - name: LANGSMITH_ENDPOINT
-              value: https://api.smith.langchain.com
-            - name: LANGSMITH_PROJECT
-              value: local-reliability-lab
-            - name: LANGSMITH_TIMEOUT_SECONDS
-              value: "2.5"
-            - name: GEMINI_BASE_URL
-              value: https://generativelanguage.googleapis.com/v1beta
-            - name: GEMINI_MODEL
-              value: "gemini-3.1-flash-lite-preview"
-            - name: GEMINI_MAX_ATTEMPTS
-              value: "3"
-            - name: GEMINI_RETRY_BASE_DELAY_SECONDS
-              value: "0.5"
-            - name: GEMINI_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: ai-reliability-llm
-                  key: gemini-api-key
-                  optional: true
-            - name: LANGSMITH_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: ai-reliability-llm
-                  key: langsmith-api-key
-                  optional: true
-            - name: LANGSMITH_WORKSPACE_ID
-              valueFrom:
-                secretKeyRef:
-                  name: ai-reliability-llm
-                  key: langsmith-workspace-id
-                  optional: true
-            - name: PORT
-              value: "8080"
-            - name: TOP_K
-              value: "3"
-            - name: PYTHONDONTWRITEBYTECODE
-              value: "1"
-          ports:
-            - name: http
-              containerPort: 8080
-          readinessProbe:
-            httpGet:
-              path: /readyz
-              port: http
-            initialDelaySeconds: 2
-            periodSeconds: 5
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: http
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            runAsNonRoot: true
-            runAsUser: 10001
-            runAsGroup: 10001
-            capabilities:
-              drop:
-                - ALL
-          resources:
-            requests:
-              cpu: 50m
-              memory: 128Mi
-            limits:
-              cpu: 500m
-              memory: 256Mi
-          volumeMounts:
-            - name: app
-              mountPath: /app
-              readOnly: true
-            - name: corpus
-              mountPath: /corpus
-              readOnly: true
-            - name: tmp
-              mountPath: /tmp
-      volumes:
-        - name: app
-          configMap:
-            name: ai-reliability-app
+      - name: ai-reliability
+        image: 
+          ghcr.io/edwardmccormick/ai-reliability@sha256:b059c19bfe06d54a9118693311328cbc36bd14c33379e3fb7020b25eb9b23737
+        imagePullPolicy: IfNotPresent
+        command:
+        - python
+        - /app/server.py
+        env:
+        - name: AI_CORPUS_DIR
+          value: /corpus
+        - name: AI_DEFAULT_MODE
+          value: extractive
+        - name: AI_GENERATIVE_PROVIDER
+          value: gemini
+        - name: LANGSMITH_TRACING
+          value: "true"
+        - name: LANGSMITH_ENDPOINT
+          value: https://api.smith.langchain.com
+        - name: LANGSMITH_PROJECT
+          value: local-reliability-lab
+        - name: LANGSMITH_TIMEOUT_SECONDS
+          value: "2.5"
+        - name: GEMINI_BASE_URL
+          value: https://generativelanguage.googleapis.com/v1beta
+        - name: GEMINI_MODEL
+          value: "gemini-3.1-flash-lite-preview"
+        - name: GEMINI_MAX_ATTEMPTS
+          value: "3"
+        - name: GEMINI_RETRY_BASE_DELAY_SECONDS
+          value: "0.5"
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ai-reliability-llm
+              key: gemini-api-key
+              optional: true
+        - name: LANGSMITH_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ai-reliability-llm
+              key: langsmith-api-key
+              optional: true
+        - name: LANGSMITH_WORKSPACE_ID
+          valueFrom:
+            secretKeyRef:
+              name: ai-reliability-llm
+              key: langsmith-workspace-id
+              optional: true
+        - name: PORT
+          value: "8080"
+        - name: TOP_K
+          value: "3"
+        - name: PYTHONDONTWRITEBYTECODE
+          value: "1"
+        ports:
+        - name: http
+          containerPort: 8080
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: http
+          initialDelaySeconds: 2
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 10001
+          runAsGroup: 10001
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        volumeMounts:
         - name: corpus
-          configMap:
-            name: ai-reliability-corpus
+          mountPath: /corpus
+          readOnly: true
         - name: tmp
-          emptyDir: {}
+          mountPath: /tmp
+      volumes:
+      - name: corpus
+        configMap:
+          name: ai-reliability-corpus
+      - name: tmp
+        emptyDir: {}
   strategy:
     canary:
       stableService: ai-reliability-stable
@@ -136,18 +131,18 @@ spec:
         labels:
           rollouts-phase: canary
       steps:
-        - setWeight: 20
-        - pause:
-            duration: 30s
-        - analysis:
-            templates:
-              - templateName: ai-reliability-canary-analysis
-        - setWeight: 50
-        - pause:
-            duration: 30s
-        - analysis:
-            templates:
-              - templateName: ai-reliability-canary-analysis
-        - setWeight: 100
-        - pause:
-            duration: 15s
+      - setWeight: 20
+      - pause:
+          duration: 30s
+      - analysis:
+          templates:
+          - templateName: ai-reliability-canary-analysis
+      - setWeight: 50
+      - pause:
+          duration: 30s
+      - analysis:
+          templates:
+          - templateName: ai-reliability-canary-analysis
+      - setWeight: 100
+      - pause:
+          duration: 15s

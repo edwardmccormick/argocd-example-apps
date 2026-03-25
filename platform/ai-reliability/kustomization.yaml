@@ -7,31 +7,23 @@ generatorOptions:
   disableNameSuffixHash: true
 
 resources:
-  - namespace.yaml
-  - rollout.yaml
-  - analysis-template.yaml
-  - service.yaml
-  - ingressroute.yaml
-  - hpa.yaml
+- namespace.yaml
+- rollout.yaml
+- analysis-template.yaml
+- service.yaml
+- ingressroute.yaml
+- hpa.yaml
 
 configMapGenerator:
-  - name: ai-reliability-app
-    files:
-      - engine.py=app/engine.py
-      - server.py=app/server.py
-      - tracing.py=app/tracing.py
-      - eval_cases.json=app/eval_cases.json
-      - generative_eval_cases.json=app/generative_eval_cases.json
-      - replay_cases.json=app/replay_cases.json
-  - name: ai-reliability-canary-burst
-    files:
-      - script.js=scripts/canary-burst.js
-  - name: ai-reliability-corpus
-    files:
-      - corpus/README.md
-      - corpus/etl-modernization-work.md
-      - corpus/payments-authorization-work.md
-      - corpus/soap-modernization-work.md
-      - corpus/observability-baseline.md
-      - corpus/failure-drill-guestbook-readiness.md
-      - corpus/trivy-and-smoketest-notes.md
+- name: ai-reliability-canary-burst
+  files:
+  - script.js=scripts/canary-burst.js
+- name: ai-reliability-corpus
+  files:
+  - corpus/README.md
+  - corpus/etl-modernization-work.md
+  - corpus/payments-authorization-work.md
+  - corpus/soap-modernization-work.md
+  - corpus/observability-baseline.md
+  - corpus/failure-drill-guestbook-readiness.md
+  - corpus/trivy-and-smoketest-notes.md
