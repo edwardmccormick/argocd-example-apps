@@ -83,10 +83,37 @@ jobs:
           kubeconform -strict -summary -ignore-missing-schemas ./platform/argocd/root-application.yaml
 
       - name: Run deterministic AI evals
+        id: deterministic_ai_eval
+        continue-on-error: true
         run: |
+          set +e
           python3 ./platform/ai-reliability/app/run_eval.py \
             --corpus-dir ./platform/ai-reliability/corpus \
-            --eval-file ./platform/ai-reliability/app/eval_cases.json
+            --eval-file ./platform/ai-reliability/app/eval_cases.json \
+            --output-file /tmp/ai-eval-summary.json
+          eval_exit_code=$?
+
+          if [ ! -s /tmp/ai-eval-summary.json ]; then
+            echo '{"total":0,"passed":0,"failed":1,"by_category":{},"results":[{"id":"eval_summary_missing","category":"workflow","ok":false,"response_result":null,"documents":[],"answer":null,"error":"deterministic eval command failed before writing summary output"}]}' > /tmp/ai-eval-summary.json
+          fi
+
+          cat /tmp/ai-eval-summary.json
+          echo "exit_code=${eval_exit_code}" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload deterministic AI eval summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-eval-summary
+          path: /tmp/ai-eval-summary.json
+          retention-days: 7
+
+      - name: Enforce deterministic AI eval gate
+        if: steps.deterministic_ai_eval.outputs.exit_code != '0'
+        run: |
+          echo "Deterministic AI evals failed"
+          exit 1
 
       - name: Set up Trivy
         run: |

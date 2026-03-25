@@ -18,11 +18,16 @@ configMapGenerator:
     files:
       - guestbook-overview.json=config/grafana/guestbook-overview.json
       - ai-docqa-overview.json=config/grafana/ai-docqa-overview.json
+      - ai-ci-evals.json=config/grafana/ai-ci-evals.json
       - argocd-control-plane.json=config/grafana/argocd-control-plane.json
+  - name: ai-ci-eval-metrics-poller
+    files:
+      - ci_eval_metrics_poller.py=scripts/ci_eval_metrics_poller.py
 
 resources:
   - namespace.yaml
   - blackbox-exporter.yaml
+  - ci-eval-metrics.yaml
   - prometheus.yaml
   - grafana.yaml
   - otel-collector.yaml

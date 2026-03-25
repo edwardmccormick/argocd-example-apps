@@ -31,7 +31,7 @@ If the readiness path is broken in Git and Argo CD applies the change automatica
 
 ## Failure Injection
 
-Change the readiness probe path in [`values.yaml`](./helm-guestbook/values.yaml#L47) from:
+Change the readiness probe path in [`helm-guestbook/values.yaml`](../helm-guestbook/values.yaml#L47) from:
 
 ```yaml
 probes:
@@ -49,7 +49,7 @@ probes:
 
 Commit and push the change so Argo CD reconciles it.
 
-## Expected Symptoms
+## Expected Behavior During Failure
 
 - The new guestbook pod fails readiness
 - The old ready pod continues serving traffic while the rollout stalls
@@ -75,7 +75,14 @@ This happens because the Deployment uses the default `RollingUpdate` strategy. W
    - `Guestbook Average Request Latency SLI`
 7. Confirm the alert state in Prometheus
 
-## Recovery Path
+## SLO Impact
+
+- User-facing availability may remain close to target because Kubernetes keeps the old ready pod serving while the replacement fails readiness.
+- Latency and request-rate signals may show mild turbulence, but this drill should not create a full transport outage in steady state.
+- The primary reliability impact is rollout health and deploy velocity, not endpoint availability.
+- If availability drops to zero ready endpoints, treat that as an abort condition rather than expected behavior for this drill.
+
+## Recovery Procedure
 
 1. Revert the readiness probe path in Git back to `/`
 2. Commit and push the revert
@@ -93,6 +100,13 @@ Stop the drill and recover immediately if any of these happen:
 - service endpoints drop to zero ready backends
 - ingress or service behavior becomes fully unavailable to users
 - Argo CD stops reconciling and recovery through Git is no longer working
+
+## What This Drill Validates
+
+- Argo CD automation can apply a bad readiness change while Kubernetes still protects live traffic from unready pods.
+- The observability stack can distinguish a stalled rollout from a full service outage.
+- Recovery remains Git-first: reverting desired state restores healthy rollout behavior.
+- Teams can reason about error-budget impact using both rollout signals and user-facing SLI behavior.
 
 ## Follow-Up Hardening
 
