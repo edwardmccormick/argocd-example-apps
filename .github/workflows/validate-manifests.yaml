@@ -287,6 +287,15 @@ jobs:
             -n ai-lab \
             -l app=ai-reliability \
             --timeout=180s
+          for _ in $(seq 1 30); do
+            if kubectl get endpoints ai-reliability -n ai-lab -o jsonpath='{.subsets[*].addresses[*].ip}' | grep -q .; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Timed out waiting for ai-reliability service endpoints"
+          kubectl get svc,endpoints,endpointslice -n ai-lab || true
+          exit 1
 
       - name: AI smoke test diagnostics
         if: failure()
@@ -322,6 +331,12 @@ jobs:
             --command -- \
             sh -c '
               set -eu
+              for _ in $(seq 1 20); do
+                if curl -fsS http://ai-reliability.ai-lab.svc.cluster.local:8080/healthz >/dev/null; then
+                  break
+                fi
+                sleep 2
+              done
               curl -fsS http://ai-reliability.ai-lab.svc.cluster.local:8080/healthz
               echo
               curl -fsS http://ai-reliability.ai-lab.svc.cluster.local:8080/readyz
