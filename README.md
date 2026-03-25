@@ -66,6 +66,15 @@ kubectl create secret generic ai-ci-eval-metrics \
 
 This token is optional for public repositories but helps avoid unauthenticated API rate limits. The polling path runs inside the cluster as the `ai-ci-eval-metrics` CronJob and pushes to `pushgateway` for Prometheus scraping.
 
+If you want the AI image pinning workflow to commit directly to `main` while keeping PR-required protections for normal users, create a private GitHub App, install it on this repository, add that app to the `main` ruleset bypass list, and set:
+
+- repository variable `AI_IMAGE_PINNER_APP_ID`
+- repository secret `AI_IMAGE_PINNER_PRIVATE_KEY`
+
+This lab keeps that app intentionally narrow: it only needs write access to [`platform/ai-reliability/kustomization.yaml`](./platform/ai-reliability/kustomization.yaml) and [`platform/ai-reliability/rollout.yaml`](./platform/ai-reliability/rollout.yaml), plus read access to actions, commit statuses, and metadata. That is enough for the post-merge image pin without giving automation broad repo write access.
+
+That narrow scope is a deliberate tradeoff. It is safer for the current repo shape, but future refactors need to preserve or consciously expand those paths if the image-pin workflow ever needs to touch different files.
+
 ### Access
 
 Traefik routes everything through `localhost:8080` by host header:
@@ -157,7 +166,7 @@ The trace captures the question, mode, top-k retrieval setting, selected chunks,
 - environment-managed applications in [`environments/local`](./environments/local)
 - automated sync with `prune` and `selfHeal`
 - Helm-backed guestbook deployment from [`helm-guestbook`](./helm-guestbook)
-- AI service image build-and-pin workflow in [`.github/workflows/build-ai-image.yaml`](./.github/workflows/build-ai-image.yaml), which builds to GHCR on `main` and commits a pinned digest back into Git
+- AI service image build-and-pin workflow in [`.github/workflows/build-ai-image.yaml`](./.github/workflows/build-ai-image.yaml), which builds to GHCR on `main` and commits a pinned digest back into Git using a GitHub App installation token
 
 ### Progressive Delivery
 
