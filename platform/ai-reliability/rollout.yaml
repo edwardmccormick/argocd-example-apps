@@ -23,7 +23,7 @@ spec:
       containers:
       - name: ai-reliability
         image: 
-          ghcr.io/edwardmccormick/ai-reliability@sha256:b059c19bfe06d54a9118693311328cbc36bd14c33379e3fb7020b25eb9b23737
+          ghcr.io/edwardmccormick/ai-reliability@sha256:bbba69090b4c8b3eb558bd94b0469684ca148ca7fdc3edba0af21067a3a14651
         imagePullPolicy: IfNotPresent
         command:
         - python
