@@ -9,6 +9,7 @@ name: Build AI Image
       - platform/ai-reliability/Dockerfile
       - platform/ai-reliability/.dockerignore
       - platform/ai-reliability/app/**
+      - scripts/commit_files_via_github_api.py
       - scripts/update_ai_image_ref.py
   workflow_dispatch:
 

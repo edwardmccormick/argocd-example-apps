@@ -22,16 +22,27 @@ def api_request(method: str, url: str, token: str, payload: dict | None = None) 
         headers["Content-Type"] = "application/json"
 
     request = urllib.request.Request(url, data=data, headers=headers, method=method)
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.load(response)
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.load(response)
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"GitHub API request failed: {method} {url} -> HTTP {exc.code} {body}") from exc
 
 
 def create_commit(repo: str, branch: str, message: str, files: list[str], token: str, max_attempts: int = 3) -> str:
     api_root = f"https://api.github.com/repos/{repo}"
+    original_head_sha: str | None = None
 
     for attempt in range(1, max_attempts + 1):
         ref = api_request("GET", f"{api_root}/git/ref/heads/{branch}", token)
         head_sha = ref["object"]["sha"]
+        if original_head_sha is None:
+            original_head_sha = head_sha
+        elif head_sha != original_head_sha:
+            raise RuntimeError(
+                f"Refusing to overwrite newer branch state: {branch} moved from {original_head_sha} to {head_sha} while preparing the pinned-image commit"
+            )
 
         commit = api_request("GET", f"{api_root}/git/commits/{head_sha}", token)
         base_tree_sha = commit["tree"]["sha"]
@@ -74,12 +85,11 @@ def create_commit(repo: str, branch: str, message: str, files: list[str], token:
                 {"sha": new_commit["sha"], "force": False},
             )
             return new_commit["sha"]
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="replace")
-            if exc.code == 422 and attempt < max_attempts:
+        except RuntimeError as exc:
+            if "HTTP 422" in str(exc) and attempt < max_attempts:
                 time.sleep(2 * attempt)
                 continue
-            raise RuntimeError(f"Failed to update branch ref: HTTP {exc.code} {body}") from exc
+            raise
 
     raise RuntimeError("Failed to update branch ref after retries")
 
