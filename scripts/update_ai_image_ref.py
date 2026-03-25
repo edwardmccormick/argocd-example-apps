@@ -12,7 +12,6 @@ except ImportError:
     YAML = None
     rt_yaml = None
     import yaml
-
 def load_yaml(path: Path) -> dict:
     with path.open("r", encoding="utf-8") as handle:
         if rt_yaml is not None:
