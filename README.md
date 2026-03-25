@@ -71,11 +71,9 @@ If you want the AI image pinning workflow to commit directly to `main` while kee
 - repository variable `AI_IMAGE_PINNER_APP_ID` (preferred) or repository secret `AI_IMAGE_PINNER_APP_ID`
 - repository secret `AI_IMAGE_PINNER_PRIVATE_KEY`
 
-This lab keeps that app intentionally narrow: it only needs write access to [`platform/ai-reliability/kustomization.yaml`](./platform/ai-reliability/kustomization.yaml) and [`platform/ai-reliability/rollout.yaml`](./platform/ai-reliability/rollout.yaml), plus read access to actions, commit statuses, and metadata. That is enough for the post-merge image pin without giving automation broad repo write access.
+The build workflow uses a GitHub App installation token and a normal `git commit` / `git push` flow to pin the built image back into Git. For that reason, the app should have repository `Contents: write` on this repository, plus the read access needed for actions, commit statuses, and metadata.
 
-That narrow scope is a deliberate tradeoff. It is safer for the current repo shape, but future refactors need to preserve or consciously expand those paths if the image-pin workflow ever needs to touch different files.
-
-The build workflow uses the GitHub App installation token with the permissions granted to that installation and updates the pinned image files through GitHub's API rather than a raw `git push`. That keeps the automation aligned with the app's narrow file-scoped write model.
+That is broader than a file-scoped write model, but it keeps the workflow much simpler and more reliable. The containment here comes from the app being installed only on this repository, used only by this workflow, and limited by normal branch/ruleset controls for every actor except the explicit image-pin bypass.
 
 For the helper action in [`.github/workflows/build-ai-image.yaml`](./.github/workflows/build-ai-image.yaml), `AI_IMAGE_PINNER_APP_ID` should be the numeric GitHub App ID, not the client ID.
 
@@ -170,7 +168,7 @@ The trace captures the question, mode, top-k retrieval setting, selected chunks,
 - environment-managed applications in [`environments/local`](./environments/local)
 - automated sync with `prune` and `selfHeal`
 - Helm-backed guestbook deployment from [`helm-guestbook`](./helm-guestbook)
-- AI service image build-and-pin workflow in [`.github/workflows/build-ai-image.yaml`](./.github/workflows/build-ai-image.yaml), which builds to GHCR on `main` and commits a pinned digest back into Git using a GitHub App installation token and the GitHub API
+- AI service image build-and-pin workflow in [`.github/workflows/build-ai-image.yaml`](./.github/workflows/build-ai-image.yaml), which builds to GHCR on `main` and commits a pinned digest back into Git using a GitHub App installation token
 
 ### Progressive Delivery
 
