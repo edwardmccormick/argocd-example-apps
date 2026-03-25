@@ -50,6 +50,9 @@ jobs:
       - name: Render AI reliability platform
         run: kubectl kustomize ./platform/ai-reliability > /tmp/ai-reliability.yaml
 
+      - name: Build AI reliability image
+        run: docker build -f ./platform/ai-reliability/Dockerfile ./platform/ai-reliability
+
       - name: YAML syntax check
         run: |
           yamllint -d "{extends: default, rules: {line-length: disable, document-start: disable, new-lines: disable, new-line-at-end-of-file: disable, truthy: disable}}" \

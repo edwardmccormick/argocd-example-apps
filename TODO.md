@@ -40,6 +40,48 @@ Canary analysis now runs rollout-triggered burst traffic and enforces minimum re
 
 ## Next Up
 
+### Align GitOps Branch Tracking
+
+Standardize Argo CD applications on `targetRevision: main` instead of `HEAD` so branch protection and deployment source-of-truth semantics match the repo’s documented operating model.
+
+Success criteria:
+
+- all repo-backed Argo CD applications track `main`
+- README and manifests tell the same GitOps story
+- no remaining implicit dependency on the remote default branch
+
+### Provider Resilience
+
+Add bounded retry/backoff handling for transient upstream Gemini failures such as `429` and `503`, while keeping failure behavior explicit and observable.
+
+Success criteria:
+
+- transient provider saturation does not fail the first request immediately
+- retries are capped and jittered or backoff-based rather than open-ended
+- logs and traces make retry behavior visible
+- permanent failures still surface clearly to callers
+
+### Corpus Path Cleanup
+
+Normalize corpus-relative document names so citations, traces, and dashboards do not expose ConfigMap revision-directory prefixes.
+
+Success criteria:
+
+- citation `document` fields are stable and human-readable
+- traces and eval outputs no longer contain rollout-specific or atomic symlink path fragments
+- retrieval ranking behavior is preserved
+
+### Custom AI Service Image
+
+Replace the current `python:3.12-slim` plus ConfigMap-mounted code model with a small pinned image build for the AI service.
+
+Success criteria:
+
+- the service builds from a Dockerfile in-repo
+- runtime code is no longer injected via ConfigMap
+- dependency management becomes explicit and version-pinned
+- the path is ready for first-class SDK integrations instead of only stdlib HTTP clients
+
 ### Event-Driven Scaling
 
 Add a queue-backed producer/consumer path and KEDA scaling to demonstrate backlog-aware autoscaling.
