@@ -65,9 +65,7 @@ jobs:
           app-id: ${{ steps.app-config.outputs.app_id }}
           private-key: ${{ secrets.AI_IMAGE_PINNER_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: |
-            argocd-example-apps
-          permission-contents: write
+          repositories: ${{ github.event.repository.name }}
 
       - name: Checkout
         uses: actions/checkout@v4
