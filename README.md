@@ -68,7 +68,7 @@ This token is optional for public repositories but helps avoid unauthenticated A
 
 If you want the AI image pinning workflow to commit directly to `main` while keeping PR-required protections for normal users, create a private GitHub App, install it on this repository, add that app to the `main` ruleset bypass list, and set:
 
-- repository variable `AI_IMAGE_PINNER_APP_ID`
+- repository variable `AI_IMAGE_PINNER_APP_ID` (preferred) or repository secret `AI_IMAGE_PINNER_APP_ID`
 - repository secret `AI_IMAGE_PINNER_PRIVATE_KEY`
 
 This lab keeps that app intentionally narrow: it only needs write access to [`platform/ai-reliability/kustomization.yaml`](./platform/ai-reliability/kustomization.yaml) and [`platform/ai-reliability/rollout.yaml`](./platform/ai-reliability/rollout.yaml), plus read access to actions, commit statuses, and metadata. That is enough for the post-merge image pin without giving automation broad repo write access.
