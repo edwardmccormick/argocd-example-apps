@@ -4,16 +4,20 @@ import argparse
 from pathlib import Path
 
 import yaml
+from ruamel.yaml import YAML
 
+
+rt_yaml = YAML(typ="rt")
+rt_yaml.preserve_quotes = True
 
 def load_yaml(path: Path) -> dict:
     with path.open("r", encoding="utf-8") as handle:
-        return yaml.safe_load(handle)
+        return rt_yaml.load(handle)
 
 
 def dump_yaml(path: Path, payload: dict) -> None:
     with path.open("w", encoding="utf-8") as handle:
-        yaml.safe_dump(payload, handle, sort_keys=False)
+        rt_yaml.dump(payload, handle)
 
 
 def update_rollout(rollout_path: Path, image_ref: str) -> bool:
