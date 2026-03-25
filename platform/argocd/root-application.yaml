@@ -12,11 +12,28 @@ spec:
       labels:
         app.kubernetes.io/name: argocd-server
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+        runAsNonRoot: true
       containers:
         - name: argocd-server
           args:
             - /usr/local/bin/argocd-server
             - --insecure
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
