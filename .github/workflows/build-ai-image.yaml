@@ -126,10 +126,9 @@ jobs:
             exit 0
           fi
 
-          user_id="$(gh api "/users/${{ steps.app-token.outputs.app-slug }}[bot]" --jq .id)"
-          git config user.name "${{ steps.app-token.outputs.app-slug }}[bot]"
-          git config user.email "${user_id}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
-          git add platform/ai-reliability/rollout.yaml platform/ai-reliability/kustomization.yaml
-          git commit -m "Pin ai-reliability image to ${{ steps.build.outputs.digest }}"
-          git pull --rebase
-          git push
+          python3 ./scripts/commit_files_via_github_api.py \
+            --repo "${GITHUB_REPOSITORY}" \
+            --branch "${GITHUB_REF_NAME}" \
+            --message "Pin ai-reliability image to ${{ steps.build.outputs.digest }}" \
+            platform/ai-reliability/rollout.yaml \
+            platform/ai-reliability/kustomization.yaml
