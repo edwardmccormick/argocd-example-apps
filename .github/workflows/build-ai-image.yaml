@@ -13,7 +13,7 @@ name: Build AI Image
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   packages: write
 
 concurrency:
