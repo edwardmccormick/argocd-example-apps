@@ -131,5 +131,12 @@ jobs:
           git config user.email "${user_id}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
           git add platform/ai-reliability/rollout.yaml platform/ai-reliability/kustomization.yaml
           git commit -m "Pin ai-reliability image to ${{ steps.build.outputs.digest }}"
-          git pull --rebase origin "${GITHUB_REF_NAME}"
+
+          original_head="${GITHUB_SHA}"
+          git fetch origin "${GITHUB_REF_NAME}"
+          remote_head="$(git rev-parse "origin/${GITHUB_REF_NAME}")"
+          if [ "${remote_head}" != "${original_head}" ]; then
+            echo "Remote ${GITHUB_REF_NAME} advanced to ${remote_head} while building ${original_head}; aborting push to avoid pin mismatch."
+            exit 1
+          fi
           git push origin "HEAD:${GITHUB_REF_NAME}"
