@@ -37,11 +37,20 @@ jobs:
             app_id="${APP_ID_SECRET:-}"
           fi
 
+          # Remove all whitespace (including newlines) from the app_id and validate it.
+          app_id="$(printf '%s' "$app_id" | tr -d '[:space:]')"
+
           if [ -z "$app_id" ]; then
             echo "::error::Missing GitHub App ID. Set repository variable AI_IMAGE_PINNER_APP_ID (preferred) or repository secret AI_IMAGE_PINNER_APP_ID to the numeric GitHub App ID."
             exit 1
           fi
 
+          case "$app_id" in
+            *[!0-9]*)
+              echo "::error::Invalid GitHub App ID '$app_id'. It must consist of digits only."
+              exit 1
+              ;;
+          esac
           if [ -z "${APP_KEY:-}" ]; then
             echo "::error::Missing repository secret AI_IMAGE_PINNER_PRIVATE_KEY."
             exit 1
