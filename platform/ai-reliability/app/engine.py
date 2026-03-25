@@ -233,6 +233,8 @@ def estimate_tokens(text: str) -> int:
 
 MIN_GROUNDED_SCORE = 1.1
 RETRYABLE_PROVIDER_STATUS_CODES = {429, 500, 502, 503, 504}
+MAX_PROVIDER_BACKOFF_SECONDS = 3.0
+MAX_PROVIDER_RETRY_WINDOW_SECONDS = 8.0
 
 
 def normalize_result(grounded: bool, citations: list[dict]) -> str:
@@ -329,6 +331,13 @@ def provider_retry_settings() -> tuple[int, float]:
     return min(max(max_attempts, 1), 5), min(max(base_delay_seconds, 0.1), 2.0)
 
 
+def sanitize_provider_error_detail(detail: str, limit: int = 240) -> str:
+    compact = compact_whitespace(detail)
+    if len(compact) <= limit:
+        return compact
+    return f"{compact[:limit]}..."
+
+
 def call_gemini_generate_content(
     question: str,
     hits: list[dict],
@@ -419,6 +428,7 @@ def call_gemini_generate_content(
     raw = None
     last_error_message = ""
     retry_count = 0
+    retry_started = time.monotonic()
 
     for attempt in range(1, max_attempts + 1):
         try:
@@ -427,27 +437,30 @@ def call_gemini_generate_content(
             break
         except error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
-            last_error_message = f"generative provider request failed: {exc.code} {detail}"
-            should_retry = exc.code in RETRYABLE_PROVIDER_STATUS_CODES and attempt < max_attempts
+            sanitized_detail = sanitize_provider_error_detail(detail)
+            last_error_message = f"generative provider request failed: {exc.code} {sanitized_detail}"
+            proposed_backoff = min(base_delay_seconds * (2 ** (attempt - 1)) + random.uniform(0.0, 0.1), MAX_PROVIDER_BACKOFF_SECONDS)
+            within_retry_budget = (time.monotonic() - retry_started + proposed_backoff) <= MAX_PROVIDER_RETRY_WINDOW_SECONDS
+            should_retry = exc.code in RETRYABLE_PROVIDER_STATUS_CODES and attempt < max_attempts and within_retry_budget
             if should_retry:
                 retry_count += 1
-                backoff = base_delay_seconds * (2 ** (attempt - 1)) + random.uniform(0.0, 0.1)
-                time.sleep(backoff)
+                time.sleep(proposed_backoff)
                 continue
             if tracer and llm_run:
                 tracer.end_run(
                     llm_run,
-                    error_message=f"{exc.code} {detail[:500]}",
+                    error_message=f"{exc.code} {sanitized_detail}",
                     metadata={"retry_count": retry_count, "max_attempts": max_attempts},
                 )
             raise ValueError(last_error_message) from None
         except error.URLError as exc:
             last_error_message = f"generative provider request failed: {exc.reason}"
-            should_retry = attempt < max_attempts
+            proposed_backoff = min(base_delay_seconds * (2 ** (attempt - 1)) + random.uniform(0.0, 0.1), MAX_PROVIDER_BACKOFF_SECONDS)
+            within_retry_budget = (time.monotonic() - retry_started + proposed_backoff) <= MAX_PROVIDER_RETRY_WINDOW_SECONDS
+            should_retry = attempt < max_attempts and within_retry_budget
             if should_retry:
                 retry_count += 1
-                backoff = base_delay_seconds * (2 ** (attempt - 1)) + random.uniform(0.0, 0.1)
-                time.sleep(backoff)
+                time.sleep(proposed_backoff)
                 continue
             if tracer and llm_run:
                 tracer.end_run(

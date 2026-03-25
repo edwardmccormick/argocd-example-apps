@@ -16,6 +16,10 @@ permissions:
   contents: write
   packages: write
 
+concurrency:
+  group: build-ai-image-main
+  cancel-in-progress: false
+
 jobs:
   build-and-pin:
     runs-on: ubuntu-latest
@@ -62,7 +66,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install YAML dependency
-        run: python3 -m pip install pyyaml
+        run: python3 -m pip install pyyaml ruamel.yaml
 
       - name: Update rollout to pinned digest
         run: |
@@ -80,4 +84,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add platform/ai-reliability/rollout.yaml platform/ai-reliability/kustomization.yaml
           git commit -m "Pin ai-reliability image to ${{ steps.build.outputs.digest }}"
+          git pull --rebase
           git push
