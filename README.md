@@ -75,7 +75,7 @@ This lab keeps that app intentionally narrow: it only needs write access to [`pl
 
 That narrow scope is a deliberate tradeoff. It is safer for the current repo shape, but future refactors need to preserve or consciously expand those paths if the image-pin workflow ever needs to touch different files.
 
-The build workflow uses the GitHub App installation token with the permissions granted to that installation. It does not need to request broader repository contents access at workflow runtime.
+The build workflow uses the GitHub App installation token with the permissions granted to that installation and updates the pinned image files through GitHub's API rather than a raw `git push`. That keeps the automation aligned with the app's narrow file-scoped write model.
 
 For the helper action in [`.github/workflows/build-ai-image.yaml`](./.github/workflows/build-ai-image.yaml), `AI_IMAGE_PINNER_APP_ID` should be the numeric GitHub App ID, not the client ID.
 
@@ -170,7 +170,7 @@ The trace captures the question, mode, top-k retrieval setting, selected chunks,
 - environment-managed applications in [`environments/local`](./environments/local)
 - automated sync with `prune` and `selfHeal`
 - Helm-backed guestbook deployment from [`helm-guestbook`](./helm-guestbook)
-- AI service image build-and-pin workflow in [`.github/workflows/build-ai-image.yaml`](./.github/workflows/build-ai-image.yaml), which builds to GHCR on `main` and commits a pinned digest back into Git using a GitHub App installation token
+- AI service image build-and-pin workflow in [`.github/workflows/build-ai-image.yaml`](./.github/workflows/build-ai-image.yaml), which builds to GHCR on `main` and commits a pinned digest back into Git using a GitHub App installation token and the GitHub API
 
 ### Progressive Delivery
 
