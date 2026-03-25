@@ -141,6 +141,6 @@ Stop the drill and recover immediately if any of these happen:
 ## Follow-Up Hardening
 
 - Add explicit Grafana panels comparing stable and canary workflow completion and insufficient-context ratio side by side
-- Expand the canary analysis question set so it covers more than two grounded business questions
-- Add a replay-based live canary probe that runs a small eval bundle instead of only single-question checks
+- Expand the canary burst question set and traffic profile by category so semantic checks cover more domains
+- Add a controlled generative-traffic slice in canary burst analysis when model credentials are available
 - Add alerting for stalled rollouts caused by failed semantic analysis

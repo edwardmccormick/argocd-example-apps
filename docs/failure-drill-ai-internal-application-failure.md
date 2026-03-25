@@ -40,7 +40,7 @@ If key corpus documents are removed but the service process stays healthy, the s
 
 ## Failure Injection
 
-Remove the high-value corpus documents from [`platform/ai-reliability/kustomization.yaml`](./platform/ai-reliability/kustomization.yaml#L1) so the mounted corpus no longer contains the material needed to answer the normal evaluation and load-generator questions.
+Remove the high-value corpus documents from [`platform/ai-reliability/kustomization.yaml`](../platform/ai-reliability/kustomization.yaml#L1) so the mounted corpus no longer contains the material needed to answer the normal evaluation and load-generator questions.
 
 For example, remove these entries from the `ai-reliability-corpus` generator:
 
@@ -60,7 +60,7 @@ This is intentionally an internal application failure:
 - the response structure remains valid
 - but the semantic usefulness of the workflow drops sharply because the corpus no longer supports the normal queries
 
-## Expected Symptoms
+## Expected Behavior During Failure
 
 - `kubectl get pods -n ai-lab` still shows the AI service pod as ready
 - `GET /healthz` and `GET /readyz` still succeed
@@ -93,7 +93,14 @@ This is precisely the kind of failure mode that matters in AI systems. A healthy
    - `Citation Throughput`
 6. Confirm the Prometheus alert state for AI service degradation
 
-## Recovery Path
+## SLO Impact
+
+- Transport-level uptime should remain mostly healthy because the pod and service stay operational.
+- AI workflow quality should consume error budget: workflow completion drops while insufficient-context outcomes rise.
+- This drill validates semantic reliability guardrails rather than pod lifecycle stability.
+- A hard outage or transport failure indicates an unintended blast radius and should trigger abort conditions.
+
+## Recovery Procedure
 
 1. Restore the removed corpus entries in Git
 2. Commit and push the revert
@@ -112,6 +119,13 @@ Stop the drill and recover immediately if any of these happen:
 - `/ask` starts returning transport errors rather than semantic degradation
 - the service becomes unavailable through ingress or service DNS
 - Argo CD or Prometheus is degraded badly enough that you cannot observe the drill
+
+## What This Drill Validates
+
+- The platform can detect quality regressions even when infrastructure health checks stay green.
+- AI-specific SLIs (workflow completion and insufficient-context ratio) provide early warning for semantic breakage.
+- Recovery via Git revert restores semantic behavior without relying on ad-hoc live patches.
+- Teams can separate transport success from product-quality success in incident handling.
 
 ## Follow-Up Hardening
 

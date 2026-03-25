@@ -55,3 +55,9 @@ scrape_configs:
     static_configs:
       - targets:
           - argocd-repo-server.argocd.svc.cluster.local:8084
+
+  - job_name: ai-ci-eval
+    honor_labels: true
+    static_configs:
+      - targets:
+          - pushgateway.observability.svc.cluster.local:9091

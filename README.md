@@ -43,12 +43,26 @@ Apply the root Argo CD application:
 kubectl apply -f platform/argocd/root-application.yaml
 ```
 
+That bootstrap manifest also patches `argocd-server` to run with `--insecure` so local HTTP routing on `localhost:8080` works without manual Argo CD patching.
+
 That root app targets [`environments/local`](./environments/local), which creates:
 
 - the `local-lab` Argo CD project
+- the `argo-rollouts` controller application
 - the Helm-backed guestbook application
 - the observability stack application
 - the AI reliability application
+
+Optional but recommended for CI-eval metric polling reliability (or private forks): create a GitHub token secret in `observability` using [`platform/observability/ci-eval-metrics-secret.example.yaml`](./platform/observability/ci-eval-metrics-secret.example.yaml) or directly:
+
+```bash
+kubectl create secret generic ai-ci-eval-metrics \
+  -n observability \
+  --from-literal=github-token='replace-me' \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+This token is optional for public repositories but helps avoid unauthenticated API rate limits. The polling path runs inside the cluster as the `ai-ci-eval-metrics` CronJob and pushes to `pushgateway` for Prometheus scraping.
 
 ### Access
 
@@ -106,6 +120,8 @@ curl -H 'Host: ai-lab.localhost' \
   http://localhost:8080/ask
 ```
 
+Canary analysis burst traffic defaults to extractive mode. To include a generative slice during canary analysis, set `canary-generative-ratio` in [`platform/ai-reliability/analysis-template.yaml`](./platform/ai-reliability/analysis-template.yaml) to a value such as `0.1`.
+
 An opt-in generative eval pack also lives in [`platform/ai-reliability/app/generative_eval_cases.json`](./platform/ai-reliability/app/generative_eval_cases.json). It is intentionally not part of CI because it needs a live Gemini key and the outputs are probabilistic rather than exact-string deterministic.
 
 Run it locally with:
@@ -138,10 +154,17 @@ The trace captures the question, mode, top-k retrieval setting, selected chunks,
 - automated sync with `prune` and `selfHeal`
 - Helm-backed guestbook deployment from [`helm-guestbook`](./helm-guestbook)
 
+### Progressive Delivery
+
+- Argo Rollouts canary delivery for `ai-reliability` with staged traffic (`20%` -> `50%` -> `100%`)
+- analysis-gated promotion using readiness checks, grounded `/ask` checks, insufficient-context behavior, and canary metrics
+- rollout-triggered canary burst traffic via analysis jobs so low-traffic environments still produce evaluable sample sizes
+- minimum canary request-volume gating before semantic quality ratios are accepted
+
 ### Workloads
 
 - `guestbook-ui`: a simple web workload used to exercise deployment, observability, and failure drills
-- `ai-reliability`: a deterministic document-QA service in [`platform/ai-reliability`](./platform/ai-reliability) that supports:
+- `ai-reliability`: a deterministic-by-default document-QA service in [`platform/ai-reliability`](./platform/ai-reliability) that supports:
   - grounded retrieval over a curated Markdown corpus
   - structured JSON responses
   - replayable eval cases
@@ -155,15 +178,18 @@ The trace captures the question, mode, top-k retrieval setting, selected chunks,
 - guestbook SLIs for availability and latency
 - AI service SLIs for workflow completion and structured-output validity
 - mode-split AI visibility for extractive versus generative behavior
+- canary gate panels for request volume, workflow completion, and insufficient-context ratio
 - Argo CD control-plane metrics and dashboarding
+- CI deterministic eval pass-rate trends pulled from GitHub Actions into Prometheus and Grafana
 - scheduled `k6` traffic for both guestbook and the AI service
 
-More detail lives in [`docs/observability-baseline.md`](./docs/observability-baseline.md).
+More detail lives in [`platform/ai-reliability/corpus/observability-baseline.md`](./platform/ai-reliability/corpus/observability-baseline.md).
 
 ### Failure Drills
 
-- guestbook readiness regression drill in [`failure-drill-guestbook-readiness.md`](./failure-drill-guestbook-readiness.md)
-- AI internal application failure drill in [`failure-drill-ai-internal-application-failure.md`](./failure-drill-ai-internal-application-failure.md)
+- guestbook readiness regression drill in [`docs/failure-drill-guestbook-readiness.md`](./docs/failure-drill-guestbook-readiness.md)
+- AI internal application failure drill in [`docs/failure-drill-ai-internal-application-failure.md`](./docs/failure-drill-ai-internal-application-failure.md)
+- AI canary semantic regression drill in [`docs/failure-drill-ai-canary-semantic-regression.md`](./docs/failure-drill-ai-canary-semantic-regression.md)
 
 These drills are intentionally GitOps-oriented: the failure is introduced through Git, detected through metrics and dashboards, and recovered by reverting Git.
 
@@ -202,7 +228,7 @@ The pipeline includes Trivy config scanning, but the more useful lesson was oper
 - smoke tests caught runtime regressions that static checks missed
 - CI dependency trust is itself a supply-chain problem
 
-Those notes are captured in [`trivy-and-smoketest-notes.md`](./trivy-and-smoketest-notes.md).
+Those notes are captured in [`docs/trivy-and-smoketest-notes.md`](./docs/trivy-and-smoketest-notes.md).
 
 ## Repository Layout
 
@@ -218,9 +244,9 @@ Those notes are captured in [`trivy-and-smoketest-notes.md`](./trivy-and-smokete
 
 The lab is now far enough along that the next valuable work is less about basic cluster setup and more about service behavior:
 
-- testing AI service degradation and recovery
-- tightening AI-specific SLI/SLO definitions
-- expanding replay and eval coverage
-- pushing the AI workload toward richer traces and model-backed behavior without losing deterministic validation
+- wiring deterministic eval pass-rate trends into Grafana
+- normalizing failure drills around steady-state hypotheses and SLO impact
+- adding queue-backed event-driven scaling and backlog-aware autoscaling signals
+- adding a practical external secret pattern for GitOps-managed secret references
 
 Deferred work is tracked in [`TODO.md`](./TODO.md).

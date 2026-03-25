@@ -23,6 +23,9 @@ configMapGenerator:
       - eval_cases.json=app/eval_cases.json
       - generative_eval_cases.json=app/generative_eval_cases.json
       - replay_cases.json=app/replay_cases.json
+  - name: ai-reliability-canary-burst
+    files:
+      - script.js=scripts/canary-burst.js
   - name: ai-reliability-corpus
     files:
       - corpus/README.md

@@ -12,10 +12,15 @@ def main() -> int:
     parser.add_argument("--corpus-dir", required=True)
     parser.add_argument("--eval-file", required=True)
     parser.add_argument("--mode", default="extractive", choices=["extractive", "generative"])
+    parser.add_argument("--output-file", default="")
     args = parser.parse_args()
 
     summary = run_eval(args.corpus_dir, args.eval_file, mode=args.mode)
-    print(json.dumps(summary, indent=2))
+    summary_json = json.dumps(summary, indent=2)
+    if args.output_file:
+        with open(args.output_file, "w", encoding="utf-8") as handle:
+            handle.write(f"{summary_json}\n")
+    print(summary_json)
     return 0 if summary["failed"] == 0 else 1
 
 

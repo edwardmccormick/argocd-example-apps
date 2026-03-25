@@ -97,3 +97,39 @@ groups:
         annotations:
           summary: Argo CD repo-server is returning errors
           description: The Argo CD repo-server has returned non-OK gRPC responses for at least 10 minutes.
+  - name: ai-ci-eval.rules
+    rules:
+      - alert: AiCiEvalWorkflowFailing
+        expr: ai_ci_eval_latest_run_failure{job="ai-ci-eval"} == 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Latest CI eval workflow run is failing
+          description: The latest completed GitHub Actions validation run is marked as failure.
+      - alert: AiCiEvalArtifactMissing
+        expr: ai_ci_eval_latest_artifact_available{job="ai-ci-eval"} == 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: CI eval summary artifact missing
+          description: The latest completed validation run did not provide an ai-eval-summary artifact.
+      - alert: AiCiEvalMetricsStale
+        expr: time() - ai_ci_eval_last_poll_timestamp_seconds{job="ai-ci-eval"} > 900
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: CI eval metrics poller is stale
+          description: The in-cluster CI eval poller has not refreshed metrics for more than 15 minutes.
+      - alert: AiCiEvalPollerFailing
+        expr: ai_ci_eval_last_poll_failure{job="ai-ci-eval"} == 1
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: CI eval metrics poller is consistently failing
+          description: >
+            The in-cluster CI eval poller has been running but reporting failures
+            (e.g., GitHub API or Pushgateway issues) for at least 30 minutes.

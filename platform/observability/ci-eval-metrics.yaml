@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pushgateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pushgateway
+  template:
+    metadata:
+      labels:
+        app: pushgateway
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: pushgateway
+          image: prom/pushgateway:v1.10.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: 9091
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pushgateway
+spec:
+  selector:
+    app: pushgateway
+  ports:
+    - name: http
+      port: 9091
+      targetPort: 9091
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ai-ci-eval-metrics
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          restartPolicy: Never
+          containers:
+            - name: poller
+              image: python:3.12-slim
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 10001
+                runAsGroup: 10001
+                capabilities:
+                  drop:
+                    - ALL
+              env:
+                - name: GITHUB_OWNER
+                  value: edwardmccormick
+                - name: GITHUB_REPO
+                  value: argocd-example-apps
+                - name: GITHUB_WORKFLOW_FILE
+                  value: validate-manifests.yaml
+                - name: GITHUB_BRANCH
+                  value: main
+                - name: EVAL_ARTIFACT_NAME
+                  value: ai-eval-summary
+                - name: GITHUB_API_URL
+                  value: https://api.github.com
+                - name: PUSHGATEWAY_URL
+                  value: http://pushgateway.observability.svc.cluster.local:9091
+                - name: PUSHGATEWAY_JOB_NAME
+                  value: ai-ci-eval
+                - name: REQUEST_TIMEOUT_SECONDS
+                  value: "20"
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+                - name: GITHUB_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: ai-ci-eval-metrics
+                      key: github-token
+                      optional: true
+              command:
+                - python
+                - /app/ci_eval_metrics_poller.py
+              volumeMounts:
+                - name: app
+                  mountPath: /app
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: app
+              configMap:
+                name: ai-ci-eval-metrics-poller
+            - name: tmp
+              emptyDir: {}
