@@ -51,7 +51,39 @@ jobs:
         run: kubectl kustomize ./platform/ai-reliability > /tmp/ai-reliability.yaml
 
       - name: Build AI reliability image
-        run: docker build -f ./platform/ai-reliability/Dockerfile ./platform/ai-reliability
+        run: docker build -t ai-reliability:ci -f ./platform/ai-reliability/Dockerfile ./platform/ai-reliability
+
+      - name: Smoke test built AI image
+        run: |
+          set -euo pipefail
+          docker rm -f ai-reliability-ci >/dev/null 2>&1 || true
+          trap 'docker rm -f ai-reliability-ci >/dev/null 2>&1 || true' EXIT
+
+          docker run -d \
+            --name ai-reliability-ci \
+            -p 18080:8080 \
+            -e AI_CORPUS_DIR=/corpus \
+            -v "${PWD}/platform/ai-reliability/corpus:/corpus:ro" \
+            ai-reliability:ci
+
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18080/readyz >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+          curl -fsS http://127.0.0.1:18080/healthz
+          echo
+          curl -fsS http://127.0.0.1:18080/readyz
+          echo
+          response="$(curl -fsS \
+            -H 'Content-Type: application/json' \
+            -d '{"question":"What operational value did the Trivy and smoke-test notes describe?"}' \
+            http://127.0.0.1:18080/ask)"
+          echo "$response"
+          echo "$response" | grep -q "\"result\":"
+          echo "$response" | grep -q "\"citations\":"
 
       - name: YAML syntax check
         run: |
