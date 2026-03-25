@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import math
 import os
+import random
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -164,12 +166,29 @@ def split_chunks(document: str, title: str, contents: str) -> list[Chunk]:
     return chunks
 
 
+def is_visible_corpus_path(path: Path, base: Path) -> bool:
+    relative_parts = path.relative_to(base).parts
+    return not any(part.startswith("..") for part in relative_parts)
+
+
+def normalize_document_name(path: Path, base: Path) -> str:
+    return path.relative_to(base).as_posix()
+
+
 def load_corpus(corpus_dir: str) -> list[Chunk]:
     base = Path(corpus_dir)
     chunks: list[Chunk] = []
+    seen_documents: set[str] = set()
     for path in sorted(base.rglob("*.md")):
+        if not is_visible_corpus_path(path, base):
+            continue
+
+        relative_name = normalize_document_name(path, base)
+        if relative_name in seen_documents:
+            continue
+        seen_documents.add(relative_name)
+
         contents = path.read_text(encoding="utf-8")
-        relative_name = path.relative_to(base).as_posix()
         title = detect_title(contents, path.name)
         chunks.extend(split_chunks(relative_name, title, contents))
     return chunks
@@ -213,6 +232,9 @@ def estimate_tokens(text: str) -> int:
 
 
 MIN_GROUNDED_SCORE = 1.1
+RETRYABLE_PROVIDER_STATUS_CODES = {429, 500, 502, 503, 504}
+MAX_PROVIDER_BACKOFF_SECONDS = 3.0
+MAX_PROVIDER_RETRY_WINDOW_SECONDS = 8.0
 
 
 def normalize_result(grounded: bool, citations: list[dict]) -> str:
@@ -286,6 +308,34 @@ def extract_json_object(payload: str) -> dict:
         if not match:
             raise ValueError("generative provider returned non-JSON content") from None
         return json.loads(match.group(0))
+
+
+def provider_retry_settings() -> tuple[int, float]:
+    max_attempts = 3
+    base_delay_seconds = 0.5
+
+    raw_attempts = os.environ.get("GEMINI_MAX_ATTEMPTS", "").strip()
+    raw_delay = os.environ.get("GEMINI_RETRY_BASE_DELAY_SECONDS", "").strip()
+
+    if raw_attempts:
+        try:
+            max_attempts = int(raw_attempts)
+        except ValueError:
+            pass
+    if raw_delay:
+        try:
+            base_delay_seconds = float(raw_delay)
+        except ValueError:
+            pass
+
+    return min(max(max_attempts, 1), 5), min(max(base_delay_seconds, 0.1), 2.0)
+
+
+def sanitize_provider_error_detail(detail: str, limit: int = 240) -> str:
+    compact = compact_whitespace(detail)
+    if len(compact) <= limit:
+        return compact
+    return f"{compact[:limit]}..."
 
 
 def call_gemini_generate_content(
@@ -374,23 +424,69 @@ def call_gemini_generate_content(
             tags=["ai-docqa", "generative", "gemini"],
         )
 
-    try:
-        with request.urlopen(req, timeout=30) as response:
-            raw = json.loads(response.read().decode("utf-8"))
-    except error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
+    max_attempts, base_delay_seconds = provider_retry_settings()
+    raw = None
+    last_error_message = ""
+    retry_count = 0
+    retry_started = time.monotonic()
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with request.urlopen(req, timeout=30) as response:
+                raw = json.loads(response.read().decode("utf-8"))
+            break
+        except error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            sanitized_detail = sanitize_provider_error_detail(detail)
+            last_error_message = f"generative provider request failed: {exc.code} {sanitized_detail}"
+            proposed_backoff = min(base_delay_seconds * (2 ** (attempt - 1)) + random.uniform(0.0, 0.1), MAX_PROVIDER_BACKOFF_SECONDS)
+            within_retry_budget = (time.monotonic() - retry_started + proposed_backoff) <= MAX_PROVIDER_RETRY_WINDOW_SECONDS
+            should_retry = exc.code in RETRYABLE_PROVIDER_STATUS_CODES and attempt < max_attempts and within_retry_budget
+            if should_retry:
+                retry_count += 1
+                time.sleep(proposed_backoff)
+                continue
+            if tracer and llm_run:
+                tracer.end_run(
+                    llm_run,
+                    error_message=f"{exc.code} {sanitized_detail}",
+                    metadata={"retry_count": retry_count, "max_attempts": max_attempts},
+                )
+            raise ValueError(last_error_message) from None
+        except error.URLError as exc:
+            last_error_message = f"generative provider request failed: {exc.reason}"
+            proposed_backoff = min(base_delay_seconds * (2 ** (attempt - 1)) + random.uniform(0.0, 0.1), MAX_PROVIDER_BACKOFF_SECONDS)
+            within_retry_budget = (time.monotonic() - retry_started + proposed_backoff) <= MAX_PROVIDER_RETRY_WINDOW_SECONDS
+            should_retry = attempt < max_attempts and within_retry_budget
+            if should_retry:
+                retry_count += 1
+                time.sleep(proposed_backoff)
+                continue
+            if tracer and llm_run:
+                tracer.end_run(
+                    llm_run,
+                    error_message=str(exc.reason),
+                    metadata={"retry_count": retry_count, "max_attempts": max_attempts},
+                )
+            raise ValueError(last_error_message) from None
+
+    if raw is None:
         if tracer and llm_run:
-            tracer.end_run(llm_run, error_message=f"{exc.code} {detail[:500]}")
-        raise ValueError(f"generative provider request failed: {exc.code} {detail}") from None
-    except error.URLError as exc:
-        if tracer and llm_run:
-            tracer.end_run(llm_run, error_message=str(exc.reason))
-        raise ValueError(f"generative provider request failed: {exc.reason}") from None
+            tracer.end_run(
+                llm_run,
+                error_message=last_error_message or "generative provider request failed",
+                metadata={"retry_count": retry_count, "max_attempts": max_attempts},
+            )
+        raise ValueError(last_error_message or "generative provider request failed")
 
     candidates = raw.get("candidates", [])
     if not candidates:
         if tracer and llm_run:
-            tracer.end_run(llm_run, error_message="generative provider returned no candidates")
+            tracer.end_run(
+                llm_run,
+                error_message="generative provider returned no candidates",
+                metadata={"retry_count": retry_count, "max_attempts": max_attempts},
+            )
         raise ValueError("generative provider returned no candidates")
 
     parts = candidates[0].get("content", {}).get("parts", [])
@@ -420,6 +516,7 @@ def call_gemini_generate_content(
                 "cited_chunk_ids": cited_chunk_ids,
                 "token_usage": result["token_usage"],
             },
+            metadata={"retry_count": retry_count, "max_attempts": max_attempts},
         )
     return result
 

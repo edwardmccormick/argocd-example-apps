@@ -53,6 +53,8 @@ That root app targets [`environments/local`](./environments/local), which create
 - the observability stack application
 - the AI reliability application
 
+Repo-backed Argo CD applications track the protected `main` branch rather than the repo default branch implicitly.
+
 Optional but recommended for CI-eval metric polling reliability (or private forks): create a GitHub token secret in `observability` using [`platform/observability/ci-eval-metrics-secret.example.yaml`](./platform/observability/ci-eval-metrics-secret.example.yaml) or directly:
 
 ```bash
@@ -120,6 +122,8 @@ curl -H 'Host: ai-lab.localhost' \
   http://localhost:8080/ask
 ```
 
+The generative path includes a short bounded retry/backoff policy for transient provider saturation (`429`/`503`/similar upstream failures). The defaults are configured in [`platform/ai-reliability/rollout.yaml`](./platform/ai-reliability/rollout.yaml) through `GEMINI_MAX_ATTEMPTS` and `GEMINI_RETRY_BASE_DELAY_SECONDS`.
+
 Canary analysis burst traffic defaults to extractive mode. To include a generative slice during canary analysis, set `canary-generative-ratio` in [`platform/ai-reliability/analysis-template.yaml`](./platform/ai-reliability/analysis-template.yaml) to a value such as `0.1`.
 
 An opt-in generative eval pack also lives in [`platform/ai-reliability/app/generative_eval_cases.json`](./platform/ai-reliability/app/generative_eval_cases.json). It is intentionally not part of CI because it needs a live Gemini key and the outputs are probabilistic rather than exact-string deterministic.
@@ -153,6 +157,7 @@ The trace captures the question, mode, top-k retrieval setting, selected chunks,
 - environment-managed applications in [`environments/local`](./environments/local)
 - automated sync with `prune` and `selfHeal`
 - Helm-backed guestbook deployment from [`helm-guestbook`](./helm-guestbook)
+- AI service image build-and-pin workflow in [`.github/workflows/build-ai-image.yaml`](./.github/workflows/build-ai-image.yaml), which builds to GHCR on `main` and commits a pinned digest back into Git
 
 ### Progressive Delivery
 
@@ -171,6 +176,12 @@ The trace captures the question, mode, top-k retrieval setting, selected chunks,
   - Prometheus-friendly latency and workflow metrics
   - an optional model-backed `generative` mode behind the same response schema
   - optional LangSmith traces for request, retrieval, and model steps
+
+### Autoscaling
+
+- `ai-reliability` scales horizontally through an HPA targeting the Rollout resource
+- scale-up and scale-down behavior are tuned explicitly in [`platform/ai-reliability/hpa.yaml`](./platform/ai-reliability/hpa.yaml)
+- repeatable local load generation for scale testing lives in [`scripts/trigger-ai-scale.sh`](./scripts/trigger-ai-scale.sh)
 
 ### Observability
 
@@ -207,8 +218,11 @@ GitHub Actions validates infrastructure and runtime behavior through:
 - YAML parsing
 - Kubernetes schema validation
 - Trivy config scanning
+- AI service Docker image build validation
 - deterministic AI eval execution
+- deterministic AI eval summary artifact upload for downstream in-cluster polling
 - an ephemeral `kind` smoke test for the guestbook chart
+- an ephemeral `kind` smoke test for the AI service, including `/healthz`, `/readyz`, and `/ask`
 
 The current validation workflow lives in [`.github/workflows/validate-manifests.yaml`](./.github/workflows/validate-manifests.yaml).
 
@@ -217,6 +231,7 @@ The current validation workflow lives in [`.github/workflows/validate-manifests.
 Protected `main` is the deployment source of truth. Argo CD reconciles from Git into the cluster. That means:
 
 - manual cluster changes are not the persistent source of truth
+- the AI service image is built after merge and then pinned back into the rollout manifest by digest, so the cluster deploys an immutable reviewed artifact rather than `latest`
 - config changes in observability trigger pod rollouts through hashed Kustomize `ConfigMap` names
 - Argo CD sync drift and repo-server failure are themselves observable
 
@@ -244,9 +259,9 @@ Those notes are captured in [`docs/trivy-and-smoketest-notes.md`](./docs/trivy-a
 
 The lab is now far enough along that the next valuable work is less about basic cluster setup and more about service behavior:
 
-- wiring deterministic eval pass-rate trends into Grafana
-- normalizing failure drills around steady-state hypotheses and SLO impact
 - adding queue-backed event-driven scaling and backlog-aware autoscaling signals
 - adding a practical external secret pattern for GitOps-managed secret references
+- improving upstream model resilience with bounded retry/backoff and fallback behavior
+- turning the generative eval path into a scheduled or promotion-aware signal rather than a purely manual one
 
 Deferred work is tracked in [`TODO.md`](./TODO.md).

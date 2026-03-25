@@ -46,6 +46,10 @@ spec:
               value: https://generativelanguage.googleapis.com/v1beta
             - name: GEMINI_MODEL
               value: "gemini-3.1-flash-lite-preview"
+            - name: GEMINI_MAX_ATTEMPTS
+              value: "3"
+            - name: GEMINI_RETRY_BASE_DELAY_SECONDS
+              value: "0.5"
             - name: GEMINI_API_KEY
               valueFrom:
                 secretKeyRef:
