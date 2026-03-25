@@ -33,7 +33,7 @@ jobs:
       - name: Set up YAML tooling
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install pyyaml yamllint
+          python3 -m pip install pyyaml "yamllint==1.33.0"
 
       - name: Helm lint
         run: helm lint ./helm-guestbook
